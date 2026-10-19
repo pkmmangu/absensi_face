@@ -54,24 +54,25 @@
 
     body.reg-mode { overflow-y: auto; }
     body.scan-mode { overflow: hidden; }
+    body.card-mode { overflow-y: auto; }
 
     .hidden { display: none !important; }
     .mode { position: fixed; inset: 0; }
     .mode.hidden { display: none; }
 
     /* =========================================================
-       SCANNER STAGE (barcode + face)
+       BARCODE SCANNER (fullscreen)
     ========================================================= */
     .scanner-stage {
       position: fixed; inset: 0;
       background: var(--brand-dark);
       overflow: hidden;
     }
-    #reader, #faceReader {
+    #reader {
       width: 100%; height: 100%;
       background: var(--brand-dark);
     }
-    #reader video, #faceReader video {
+    #reader video {
       width: 100% !important; height: 100% !important;
       object-fit: cover !important;
       border-radius: 0 !important;
@@ -108,7 +109,6 @@
       0%,100% { opacity: 1; transform: scale(1); }
       50%     { opacity: .5; transform: scale(.85); }
     }
-
     .bottom-overlay {
       position: absolute;
       left: 0; right: 0; bottom: 0; height: 220px;
@@ -118,7 +118,7 @@
     }
 
     /* =========================================================
-       ACTION BAR (barcode + face)
+       ACTION BAR
     ========================================================= */
     .action-bar {
       position: fixed;
@@ -158,7 +158,7 @@
     }
 
     /* =========================================================
-       RESULT OVERLAY (shared)
+       RESULT OVERLAY
     ========================================================= */
     .result-overlay {
       position: fixed; inset: 0; z-index: 50;
@@ -240,6 +240,113 @@
     .result-message {
       font-size: 14px; line-height: 1.6;
       color: var(--text-primary); text-align: center; padding: 8px 4px;
+    }
+
+    /* =========================================================
+       FACE SCAN CARD UI
+    ========================================================= */
+    #modeFace {
+      position: fixed; inset: 0;
+      background: linear-gradient(160deg, var(--brand) 0%, var(--brand-dark) 100%);
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex; align-items: flex-start; justify-content: center;
+    }
+    #modeFace.hidden { display: none; }
+
+    .face-app { width: 100%; max-width: 480px; }
+
+    .face-card {
+      background: #fff; border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+      margin-bottom: 16px;
+    }
+    .face-brand {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-secondary);
+    }
+    .face-brand-logo {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--brand); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .face-brand-title { font-size: 16px; font-weight: 700; }
+    .face-brand-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .face-video-wrap {
+      position: relative;
+      width: 100%; aspect-ratio: 1/1;
+      background: var(--brand-dark);
+      border-radius: 50%;
+      overflow: hidden;
+      margin: 0 auto 16px;
+      max-width: 280px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+      transition: box-shadow .4s ease;
+    }
+    .face-video-wrap.detected {
+      box-shadow: 0 8px 24px rgba(0,0,0,0.15),
+                  0 0 0 4px rgba(52, 211, 153, 0.6),
+                  0 0 24px rgba(52, 211, 153, 0.4);
+    }
+    .face-video-wrap video {
+      width: 100%; height: 100%; object-fit: cover;
+      transform: scaleX(-1);
+    }
+
+    /* Overlay oval guide */
+    .face-guide {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .face-guide-oval {
+      width: 78%; height: 88%;
+      border: 3px dashed rgba(52, 211, 153, .85);
+      border-radius: 50%;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.25);
+      animation: ovalPulse 2s ease-in-out infinite;
+      transition: border-color .3s ease;
+    }
+    .face-video-wrap.detected .face-guide-oval {
+      border-style: solid;
+      border-color: var(--brand-green);
+      animation: none;
+    }
+    @keyframes ovalPulse {
+      0%,100% { border-color: rgba(52,211,153,.75); }
+      50%     { border-color: rgba(52,211,153,1);   }
+    }
+
+    .face-status-pill {
+      position: absolute;
+      bottom: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,0.72); color: #fff;
+      padding: 8px 18px; border-radius: 24px;
+      font-size: 12px; font-weight: 600;
+      backdrop-filter: blur(8px);
+      white-space: nowrap;
+      max-width: 88%;
+      overflow: hidden; text-overflow: ellipsis;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .face-status-pill i { font-size: 11px; }
+
+    .face-hint {
+      background: #f4f8fc;
+      border-radius: 12px;
+      padding: 12px 14px;
+      font-size: 12.5px;
+      color: var(--text-muted);
+      line-height: 1.5;
+      display: flex; gap: 10px; align-items: flex-start;
+    }
+    .face-hint i {
+      color: var(--brand-blue);
+      font-size: 14px; margin-top: 1px; flex-shrink: 0;
     }
 
     /* =========================================================
@@ -449,15 +556,33 @@
 </div>
 
 <!-- =========================================================
-     MODE: FACE SCAN
+     MODE: FACE SCAN (CARD UI)
 ========================================================= -->
 <div id="modeFace" class="mode hidden">
-  <div class="scanner-stage">
-    <div id="faceReader"></div>
-    <div class="bottom-overlay"></div>
-    <div class="scanner-badge" id="faceStatusBadge">
-      <span class="dot"></span>
-      <span>Memuat…</span>
+  <div class="face-app">
+    <div class="face-card">
+      <div class="face-brand">
+        <div class="face-brand-logo"><i class="fas fa-face-smile"></i></div>
+        <div>
+          <div class="face-brand-title">Verifikasi Wajah</div>
+          <div class="face-brand-sub">SIMANGU — Absensi</div>
+        </div>
+      </div>
+
+      <div class="face-video-wrap" id="faceVideoWrap">
+        <video id="faceVideo" autoplay playsinline muted></video>
+        <div class="face-guide"><div class="face-guide-oval"></div></div>
+        <div class="face-status-pill" id="faceVideoStatus">
+          <i class="fas fa-spinner fa-spin"></i>
+          <span>Menyiapkan kamera…</span>
+        </div>
+      </div>
+
+      <div class="face-hint" id="faceHint">
+        <i class="fas fa-circle-info"></i>
+        <span>Posisikan wajah di dalam oval dengan pencahayaan cukup.
+              Verifikasi berjalan otomatis saat wajah terdeteksi.</span>
+      </div>
     </div>
   </div>
 </div>
@@ -468,7 +593,6 @@
 <div id="modeRegister" class="mode hidden">
   <div class="reg-app">
 
-    <!-- Screen: Secret -->
     <section id="regScreenSecret" class="reg-screen active">
       <div class="reg-card">
         <div class="reg-brand">
@@ -490,7 +614,6 @@
       </div>
     </section>
 
-    <!-- Screen: Main (step NIK / Capture / Save) -->
     <section id="regScreenMain" class="reg-screen">
       <div class="reg-card">
         <div class="reg-brand">
@@ -503,7 +626,6 @@
 
         <div id="regMainMsg" class="reg-msg"></div>
 
-        <!-- Step 1: NIK -->
         <div id="regStepNik">
           <div class="reg-step-badge"><span class="num">1</span> Identifikasi Pegawai</div>
           <div class="reg-form-group">
@@ -516,7 +638,6 @@
           </button>
         </div>
 
-        <!-- Step 2: Capture -->
         <div id="regStepCapture" class="reg-hidden">
           <div class="reg-step-badge"><span class="num">2</span> Rekam Wajah</div>
           <div class="reg-info-block" id="regInfoPegawai"></div>
@@ -539,7 +660,6 @@
           </div>
         </div>
 
-        <!-- Step 3: Save -->
         <div id="regStepSave" class="reg-hidden">
           <div class="reg-step-badge"><span class="num">3</span> Simpan</div>
           <div class="reg-info-block" id="regInfoSave"></div>
@@ -555,7 +675,6 @@
       </div>
     </section>
 
-    <!-- Screen: Done -->
     <section id="regScreenDone" class="reg-screen">
       <div class="reg-card reg-text-center">
         <div class="reg-done-icon"><i class="fas fa-check"></i></div>
@@ -586,7 +705,7 @@
 </div>
 
 <!-- =========================================================
-     GLOBAL ACTION BAR (barcode + face)
+     ACTION BAR
 ========================================================= -->
 <div class="action-bar hidden" id="globalActionBar">
   <button class="action-btn btn-import hidden" id="importBtn" type="button">
@@ -598,7 +717,7 @@
 </div>
 
 <!-- =========================================================
-     RESULT OVERLAY (shared)
+     RESULT OVERLAY
 ========================================================= -->
 <div class="result-overlay" id="resultOverlay">
   <div class="result-card">
@@ -629,24 +748,18 @@ const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13
 const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
+const FACE_DETECT_TIMEOUT = 15000; // 15 detik max mencari wajah
 
 /* =========================================================
    URL PARSING
-   Mendukung:
-     ?face=register?user=123&secret=xxx
-     ?face=register&user=123&secret=xxx
-     ?face=1
-     ?user=123?import=enable
 ========================================================= */
 (function parseUrl() {
   const params = new URLSearchParams(window.location.search);
-
   let faceRaw = params.get('face') || '';
   let userVal = params.get('user') || '';
   let secVal  = params.get('secret') || '';
   let impVal  = params.get('import') || '';
 
-  // Handle double-? pattern: face=register?user=123
   if (faceRaw.includes('?')) {
     const parts = faceRaw.split('?');
     faceRaw = parts[0];
@@ -654,8 +767,6 @@ const FACE_MAX_ATTEMPTS = 8;
     if (!userVal) userVal = sub.get('user') || '';
     if (!secVal)  secVal  = sub.get('secret') || '';
   }
-
-  // Handle legacy: ?user=123?import=enable
   if (userVal.includes('?import=')) {
     const parts = userVal.split('?import=');
     userVal = parts[0];
@@ -664,10 +775,10 @@ const FACE_MAX_ATTEMPTS = 8;
 
   faceRaw = faceRaw.toLowerCase().trim();
   window.__URL__ = {
-    faceRaw: faceRaw,
-    userId:  userVal.trim(),
-    secret:  secVal.trim(),
-    import:  impVal.trim(),
+    faceRaw,
+    userId: userVal.trim(),
+    secret: secVal.trim(),
+    import: impVal.trim(),
     isRegister: faceRaw === 'register',
     isFaceScan: faceRaw !== '' && faceRaw !== 'register' && faceRaw !== '0' && faceRaw !== 'false',
     isBarcode:  faceRaw === '' && userVal.trim() !== '',
@@ -675,12 +786,12 @@ const FACE_MAX_ATTEMPTS = 8;
 })();
 
 const URL_CFG = window.__URL__;
-const USER_ID  = URL_CFG.userId;
+const USER_ID = URL_CFG.userId;
 const SECRET_URL = URL_CFG.secret;
 const IMPORT_ENABLED = URL_CFG.isBarcode && URL_CFG.import.toLowerCase() === 'enable';
 
 /* =========================================================
-   GLOBAL STATE
+   STATE
 ========================================================= */
 let ACTIVE_MODE = '';
 let pendingRetry = null;
@@ -707,12 +818,10 @@ function showMode(id) {
   const el = document.getElementById(id);
   if (el) el.classList.remove('hidden');
 
-  document.body.classList.remove('reg-mode', 'scan-mode');
-  if (id === 'modeRegister' || id === 'modeDenied') {
-    if (id === 'modeRegister') document.body.classList.add('reg-mode');
-  } else {
-    document.body.classList.add('scan-mode');
-  }
+  document.body.classList.remove('reg-mode', 'scan-mode', 'card-mode');
+  if (id === 'modeRegister') document.body.classList.add('reg-mode');
+  else if (id === 'modeFace') document.body.classList.add('card-mode');
+  else document.body.classList.add('scan-mode');
 }
 
 function escapeHtml(s) {
@@ -723,7 +832,7 @@ function escapeHtml(s) {
 }
 
 /* =========================================================
-   SHARED: ACTION BAR & RESULT OVERLAY
+   ACTION BAR & RESULT OVERLAY
 ========================================================= */
 const actionBar      = document.getElementById('globalActionBar');
 const actionBtn      = document.getElementById('actionBtn');
@@ -745,6 +854,7 @@ actionBtn.addEventListener('click', () => {
   if (pendingRetry) {
     const fn = pendingRetry;
     pendingRetry = null;
+    hideOverlay();
     fn();
     return;
   }
@@ -753,15 +863,14 @@ actionBtn.addEventListener('click', () => {
 });
 
 function setStatus(text, active) {
-  const id = ACTIVE_MODE === 'face' ? 'faceStatusBadge' : 'statusBadge';
-  const badge = document.getElementById(id);
+  const badge = document.getElementById('statusBadge');
   if (!badge) return;
   const lbl = badge.querySelector('span:last-child');
   if (lbl) lbl.textContent = text;
   badge.style.opacity = active ? '1' : '0.7';
 }
 
-function showLoading(text, options = {}) {
+function showLoading(text) {
   pendingRetry = null;
   resultIcon.className = 'result-icon loading';
   resultIcon.innerHTML = '<i class="fas fa-spinner"></i>';
@@ -769,9 +878,8 @@ function showLoading(text, options = {}) {
   resultSubtitle.textContent = '';
   resultGrid.innerHTML = '';
   resultOverlay.classList.add('active');
-
   hideActionBar();
-  if (!options.keepImport) hideImportBtn();
+  hideImportBtn();
 }
 
 function showResult(type, title, subtitle, rows, message) {
@@ -818,8 +926,13 @@ function showResult(type, title, subtitle, rows, message) {
 function hideOverlay() {
   resultOverlay.classList.remove('active');
   setActionLabel('Batal');
-  showActionBar();
-  if (IMPORT_ENABLED) showImportBtn();
+  if (ACTIVE_MODE === 'barcode') {
+    showActionBar();
+    if (IMPORT_ENABLED) showImportBtn();
+  } else {
+    hideActionBar();
+    hideImportBtn();
+  }
 }
 
 function kirimKeOpener(res) {
@@ -853,7 +966,7 @@ function fallbackCloseScreen() {
 }
 
 /* =========================================================
-   SHARED: GEOFENCING
+   GEOFENCING
 ========================================================= */
 function hitungJarak(lat1, lon1, lat2, lon2) {
   const R = 6371000;
@@ -900,8 +1013,7 @@ async function cekDalamRadius() {
   if (!terdekat || jarakTerdekat > MAX_RADIUS_METERS) {
     const j = Math.round(jarakTerdekat);
     return {
-      ok: false,
-      jarak: j,
+      ok: false, jarak: j,
       message: 'Anda berada di luar area absensi. Jarak ke ' +
         (terdekat ? terdekat.nama : 'lokasi terdaftar') + ' sekitar ' + j +
         ' m (maksimal ' + MAX_RADIUS_METERS + ' m).'
@@ -918,6 +1030,11 @@ window.addEventListener('load', () => {
   if (URL_CFG.isFaceScan) return bootFaceScan();
   if (URL_CFG.isBarcode)  return bootBarcodeScan();
   return bootDenied();
+});
+
+window.addEventListener('beforeunload', () => {
+  stopFaceCamera();
+  stopRegCamera();
 });
 
 function bootDenied() {
@@ -1086,7 +1203,7 @@ function tampilkanSukses(res) {
   kirimKeOpener(res);
 }
 
-/* --- Import QR (barcode only) --- */
+/* --- Import QR --- */
 if (IMPORT_ENABLED) {
   const fileInput = document.getElementById('fileInput');
   importBtn.addEventListener('click', () => {
@@ -1123,14 +1240,14 @@ async function prosesFileQrBarcode(file) {
     setStatus('QR tidak terbaca', false);
     showResult('err', 'QR Tidak Terbaca', '', [],
       'Gambar tidak mengandung QR yang valid. Pastikan QR terlihat jelas, tidak blur, dan tidak terpotong.');
-    pendingRetry = () => { hideOverlay(); };
+    pendingRetry = () => { hideOverlay(); showActionBar(); };
     setActionLabel('Coba Lagi');
     return;
   }
   if (!decodedText) {
     setStatus('QR tidak terbaca', false);
     showResult('err', 'QR Tidak Terbaca', '', [], 'Gambar tidak mengandung QR yang valid.');
-    pendingRetry = () => { hideOverlay(); };
+    pendingRetry = () => { hideOverlay(); showActionBar(); };
     setActionLabel('Coba Lagi');
     return;
   }
@@ -1138,14 +1255,16 @@ async function prosesFileQrBarcode(file) {
 }
 
 /* =========================================================
-   MODE: FACE SCAN
+   MODE: FACE SCAN (CARD UI)
 ========================================================= */
 let faceModelsLoaded = false;
 let faceFlowRunning = false;
+let faceStream = null;
 
 function bootFaceScan() {
   ACTIVE_MODE = 'face';
   showMode('modeFace');
+  hideActionBar();
   hideImportBtn();
   runFaceFlow();
 }
@@ -1161,151 +1280,193 @@ async function loadFaceModels() {
   faceModelsLoaded = true;
 }
 
-async function captureFaceDescriptor(videoEl, maxAttempts = 20) {
-  let descriptor = null;
-  for (let i = 0; i < maxAttempts && !descriptor; i++) {
+function setFaceStatus(icon, text, detected) {
+  const pill = document.getElementById('faceVideoStatus');
+  const wrap = document.getElementById('faceVideoWrap');
+  if (pill) {
+    pill.innerHTML = '<i class="fas ' + icon + '"></i><span>' + text + '</span>';
+  }
+  if (wrap) {
+    if (detected) wrap.classList.add('detected');
+    else wrap.classList.remove('detected');
+  }
+}
+
+function stopFaceCamera() {
+  if (faceStream) {
+    faceStream.getTracks().forEach(t => t.stop());
+    faceStream = null;
+  }
+  const video = document.getElementById('faceVideo');
+  if (video) video.srcObject = null;
+}
+
+/* Loop deteksi + verifikasi. Return hasil verify atau error. */
+async function detectAndVerifyFace(videoEl) {
+  const startTime = Date.now();
+  let detectedOnce = false;
+
+  while (Date.now() - startTime < FACE_DETECT_TIMEOUT) {
     await new Promise(r => setTimeout(r, 400));
+
+    let det = null;
     try {
-      const det = await faceapi
-        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+      det = await faceapi
+        .detectSingleFace(videoEl,
+          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
         .withFaceLandmarks()
         .withFaceDescriptor();
-      if (det) descriptor = Array.from(det.descriptor);
-    } catch (e) {}
+    } catch (e) { /* retry */ }
+
+    if (!det || det.detection.score < 0.5) {
+      // Belum terdeteksi → status default
+      if (!detectedOnce) {
+        setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
+      }
+      continue;
+    }
+
+    // Wajah terdeteksi
+    detectedOnce = true;
+    setFaceStatus('fa-face-smile', 'Wajah terdeteksi…', true);
+    await new Promise(r => setTimeout(r, 400));
+    setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
+
+    const descriptor = Array.from(det.descriptor);
+
+    try {
+      const verifyRes = await postJson({ action: 'face_verify', descriptor });
+
+      if (verifyRes.success) {
+        return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
+      }
+      return {
+        ok: false,
+        title: 'Wajah Tidak Dikenali',
+        message: (verifyRes.message || 'Wajah tidak cocok dengan data terdaftar.') +
+                 ' Pastikan wajah sudah terdaftar dan pencahayaan cukup.'
+      };
+    } catch (e) {
+      return {
+        ok: false,
+        title: 'Error Jaringan',
+        message: e.message || 'Gagal menghubungi server.'
+      };
+    }
   }
-  return descriptor;
+
+  return {
+    ok: false,
+    title: 'Wajah Tidak Terdeteksi',
+    message: 'Pastikan wajah terlihat jelas, pencahayaan cukup, dan kamera tidak blur.'
+  };
+}
+
+/* Tampilkan modal hasil + retry flow */
+function showFaceErrorResult(title, rows, message) {
+  showResult('err', title, '', rows || [], message || '');
+  pendingRetry = () => {
+    hideOverlay();
+    hideActionBar();
+    runFaceFlow();
+  };
+  setActionLabel('Coba Lagi');
 }
 
 async function runFaceFlow() {
   if (faceFlowRunning) return;
   faceFlowRunning = true;
+
   try {
-    setStatus('Memuat model wajah…', true);
-    showLoading('Memuat pengenal wajah…');
-    try { await loadFaceModels(); }
-    catch (e) {
-      setStatus('Gagal memuat model', false);
-      showResult('err', 'Gagal Memuat Model', '', [],
-        e.message + ' Periksa koneksi internet dan coba lagi.');
-      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
-      setActionLabel('Coba Lagi');
+    /* 1. Load model */
+    setFaceStatus('fa-spinner fa-spin', 'Memuat model wajah…', false);
+    try {
+      await loadFaceModels();
+    } catch (e) {
+      showFaceErrorResult('Gagal Memuat Model', [],
+        (e.message || '') + ' Periksa koneksi internet dan coba lagi.');
       return;
     }
 
-    setStatus('Mendeteksi wajah…', true);
-    showLoading('Mendeteksi wajah…');
-
-    let stream;
+    /* 2. Start camera */
+    setFaceStatus('fa-spinner fa-spin', 'Menyiapkan kamera…', false);
     try {
-      stream = await navigator.mediaDevices.getUserMedia({
+      faceStream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
         audio: false
       });
     } catch (e) {
-      setStatus('Kamera gagal', false);
-      showResult('err', 'Kamera Tidak Bisa Diakses', '', [],
-        'Tidak bisa mengakses kamera depan: ' + (e.message || ''));
-      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
-      setActionLabel('Coba Lagi');
+      showFaceErrorResult('Kamera Tidak Bisa Diakses', [],
+        'Tidak bisa mengakses kamera depan: ' + (e.message || '') +
+        '. Pastikan izin kamera diberikan dan halaman dibuka via HTTPS.');
       return;
     }
 
-    const video = document.createElement('video');
-    video.srcObject = stream;
-    video.autoplay = true;
-    video.playsInline = true;
-    video.muted = true;
-    video.style.cssText = 'width:100%;height:100%;object-fit:cover;transform:scaleX(-1);';
-    const faceReader = document.getElementById('faceReader');
-    faceReader.innerHTML = '';
-    faceReader.appendChild(video);
+    const video = document.getElementById('faceVideo');
+    video.srcObject = faceStream;
     await new Promise(resolve => {
       if (video.readyState >= 2) return resolve();
       video.onloadedmetadata = () => resolve();
     });
     await video.play();
 
-    const descriptor = await captureFaceDescriptor(video, 20);
-    stream.getTracks().forEach(t => t.stop());
-    faceReader.innerHTML = '';
+    /* 3. Detect + verify */
+    setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
+    const verifyResult = await detectAndVerifyFace(video);
 
-    if (!descriptor) {
-      setStatus('Wajah tidak terdeteksi', false);
-      showResult('err', 'Wajah Tidak Terdeteksi', '', [],
-        'Pastikan wajah terlihat jelas, pencahayaan cukup, dan kamera tidak blur.');
-      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
-      setActionLabel('Coba Lagi');
+    if (!verifyResult.ok) {
+      stopFaceCamera();
+      showFaceErrorResult(verifyResult.title, [], verifyResult.message);
       return;
     }
 
-    setStatus('Memverifikasi…', true);
-    showLoading('Memverifikasi wajah…');
-    let verifyRes;
-    try { verifyRes = await postJson({ action: 'face_verify', descriptor }); }
-    catch (e) {
-      setStatus('Error jaringan', false);
-      showResult('err', 'Error Jaringan', '', [], e.message);
-      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
-      setActionLabel('Coba Lagi');
-      return;
-    }
-
-    if (!verifyRes.success) {
-      setStatus('Wajah tidak dikenali', false);
-      showResult('err', 'Wajah Tidak Dikenali', '', [],
-        verifyRes.message || 'Coba lagi dengan pencahayaan lebih baik.');
-      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
-      setActionLabel('Coba Lagi');
-      return;
-    }
-
-    const nik = verifyRes.nik;
-    const nama = verifyRes.nama;
-
-    setStatus('Memeriksa lokasi…', true);
-    showLoading('Memeriksa lokasi Anda…');
+    /* 4. Location check */
+    setFaceStatus('fa-location-dot', 'Memeriksa lokasi…', true);
     const cek = await cekDalamRadius();
     if (!cek.ok) {
-      setStatus('Di luar area', false);
+      stopFaceCamera();
       showResult('err', 'Di Luar Area',
         'Absensi hanya bisa dilakukan di Puskesmas Manguharjo Kota Madiun',
         [
-          { label: 'Nama',  value: nama, icon: 'fa-user' },
+          { label: 'Nama',  value: verifyResult.nama, icon: 'fa-user' },
           { label: 'Jarak', value: (cek.jarak || '-') + ' m', icon: 'fa-location-dot' }
         ],
         cek.message || '');
       return;
     }
 
-    setStatus('Menyimpan absensi…', true);
-    showLoading('Menyimpan absensi…');
+    /* 5. Save */
+    setFaceStatus('fa-spinner fa-spin', 'Menyimpan absensi…', true);
     let saveRes;
-    try { saveRes = await postJson({ action: 'face_absensi', nik }); }
-    catch (e) {
-      setStatus('Error jaringan', false);
-      showResult('err', 'Error Jaringan', '', [], e.message);
+    try {
+      saveRes = await postJson({ action: 'face_absensi', nik: verifyResult.nik });
+    } catch (e) {
+      stopFaceCamera();
+      showFaceErrorResult('Error Jaringan', [], e.message || 'Gagal menghubungi server.');
       return;
     }
 
+    stopFaceCamera();
+
+    /* 6. Tampilkan modal final */
     if (saveRes.duplicate) {
-      setStatus('Sudah absen', false);
-      showResult('warn', 'Sudah Absen', saveRes.message || 'Data sudah tercatat',
+      showResult('warn', 'Sudah Absen',
+        saveRes.message || 'Data sudah tercatat',
         [
-          { label: 'Nama',    value: saveRes.nama || nama, icon: 'fa-user' },
-          { label: 'Tanggal', value: saveRes.tanggal || '-', icon: 'fa-calendar-day' },
-          { label: 'Jam',     value: saveRes.absen || '-',   icon: 'fa-clock' }
+          { label: 'Nama',    value: saveRes.nama || verifyResult.nama, icon: 'fa-user' },
+          { label: 'Tanggal', value: saveRes.tanggal || '-',            icon: 'fa-calendar-day' },
+          { label: 'Jam',     value: saveRes.absen || '-',              icon: 'fa-clock' }
         ]);
       kirimKeOpener(saveRes);
       return;
     }
+
     if (!saveRes.success) {
-      setStatus('Ditolak', false);
       showResult('err', 'Absensi Ditolak', '', [], saveRes.message || '');
       kirimKeOpener(saveRes);
       return;
     }
 
-    setStatus('Selesai', false);
     tampilkanSukses(saveRes);
   } finally {
     faceFlowRunning = false;
@@ -1323,7 +1484,6 @@ let regModelsReady = false;
 let regVideoStream = null;
 let regRecording = false;
 
-/* DOM refs */
 const regScreenSecret = document.getElementById('regScreenSecret');
 const regScreenMain   = document.getElementById('regScreenMain');
 const regScreenDone   = document.getElementById('regScreenDone');
@@ -1358,21 +1518,15 @@ function showRegScreen(el) {
   el.classList.add('active');
   window.scrollTo(0, 0);
 }
-
-function showRegMsg(el, type, text) {
-  el.className = 'reg-msg show ' + type;
-  el.textContent = text;
-}
+function showRegMsg(el, type, text) { el.className = 'reg-msg show ' + type; el.textContent = text; }
 function hideRegMsg(el) { el.className = 'reg-msg'; }
 
 async function bootRegister() {
   ACTIVE_MODE = 'register';
   showMode('modeRegister');
   hideActionBar();
-
   setupRegisterListeners();
 
-  // Jika SECRET di URL → langsung validasi
   if (SECRET_URL) {
     regSecretInput.value = SECRET_URL;
     await tryAutoValidateSecret(SECRET_URL);
@@ -1382,19 +1536,15 @@ async function bootRegister() {
 }
 
 function setupRegisterListeners() {
-  // Enter di secret
   regSecretInput.addEventListener('keydown', e => {
     if (e.key === 'Enter') regBtnEnter.click();
   });
-
   regBtnEnter.addEventListener('click', async () => {
     const s = regSecretInput.value.trim();
     if (!s) { showRegMsg(regSecretMsg, 'err', 'Secret tidak boleh kosong'); return; }
     await tryAutoValidateSecret(s);
   });
-
   regBtnCheckNik.addEventListener('click', () => checkNikAndCapture(regNikInput.value.trim()));
-
   regBtnBackNik.addEventListener('click', () => {
     stopRegCamera();
     regStepCapture.classList.add('reg-hidden');
@@ -1405,7 +1555,6 @@ function setupRegisterListeners() {
     if (!URL_CFG.userId) regNikInput.value = '';
     hideRegMsg(regMainMsg);
   });
-
   regBtnRetake.addEventListener('click', async () => {
     regDescriptors = [];
     regStepSave.classList.add('reg-hidden');
@@ -1416,13 +1565,10 @@ function setupRegisterListeners() {
     await startRegCamera();
     hideRegMsg(regMainMsg);
   });
-
   regBtnRecord.addEventListener('click', recordRegSamples);
   regBtnSave.addEventListener('click', saveRegData);
   regBtnAnother.addEventListener('click', () => {
-    regCurrentNik = '';
-    regCurrentNama = '';
-    regDescriptors = [];
+    regCurrentNik = ''; regCurrentNama = ''; regDescriptors = [];
     regNikInput.value = '';
     regBtnSave.disabled = false;
     regProgressBar.style.width = '0%';
@@ -1437,7 +1583,6 @@ function setupRegisterListeners() {
 async function tryAutoValidateSecret(secret) {
   regBtnEnter.disabled = true;
   hideRegMsg(regSecretMsg);
-
   try {
     const res = await postJson({ action: 'face_check_secret', secret });
     if (!res.success) {
@@ -1449,8 +1594,6 @@ async function tryAutoValidateSecret(secret) {
     regAdminBadge.textContent = 'Admin aktif';
     showRegScreen(regScreenMain);
     await initRegModels();
-
-    // Kalau USER_ID tersedia di URL → skip NIK input, langsung cek
     if (URL_CFG.userId) {
       regNikInput.value = URL_CFG.userId;
       await checkNikAndCapture(URL_CFG.userId);
@@ -1486,20 +1629,16 @@ async function initRegModels() {
 
 async function checkNikAndCapture(nik) {
   if (!nik) { showRegMsg(regMainMsg, 'err', 'NIK tidak boleh kosong'); return; }
-
   regBtnCheckNik.disabled = true;
   hideRegMsg(regMainMsg);
-
   try {
     const res = await postJson({ action: 'check_nik', secret: regAdminSecret, nik });
     if (!res.success) {
       showRegMsg(regMainMsg, 'err', res.message || 'NIK tidak valid');
-      // Kalau auto-check dari URL gagal, tampilkan form NIK agar bisa dikoreksi
       regStepNik.classList.remove('reg-hidden');
       regStepCapture.classList.add('reg-hidden');
       return;
     }
-
     regCurrentNik = res.nik;
     regCurrentNama = res.nama;
 
@@ -1512,7 +1651,6 @@ async function checkNikAndCapture(nik) {
         '<span class="reg-info-label">NIK / NIP</span>' +
         '<span class="reg-info-value">' + escapeHtml(res.nik) + '</span>' +
       '</div>';
-
     if (res.hasFace) {
       regInfoPegawai.innerHTML +=
         '<div class="reg-info-row">' +
@@ -1650,7 +1788,6 @@ async function saveRegData() {
   }
   regBtnSave.disabled = true;
   hideRegMsg(regMainMsg);
-
   try {
     const avg = averageDescriptors(regDescriptors.map(s => s.descriptor));
     const res = await postJson({
@@ -1659,13 +1796,11 @@ async function saveRegData() {
       nik: regCurrentNik,
       descriptor: avg
     });
-
     if (!res.success) {
       showRegMsg(regMainMsg, 'err', res.message || 'Gagal menyimpan');
       regBtnSave.disabled = false;
       return;
     }
-
     regDoneText.textContent = res.message || 'Data wajah telah tersimpan.';
     regDoneInfo.innerHTML =
       '<div class="reg-info-row">' +
@@ -1682,7 +1817,6 @@ async function saveRegData() {
           (res.action === 'updated' ? 'Diperbarui' : 'Terdaftar baru') +
         '</span>' +
       '</div>';
-
     showRegScreen(regScreenDone);
   } catch (err) {
     showRegMsg(regMainMsg, 'err', err.message || 'Gagal menyimpan');
