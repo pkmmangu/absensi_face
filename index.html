@@ -622,6 +622,7 @@
 
       <div class="face-video-wrap" id="faceVideoWrap">
         <video id="faceVideo" autoplay playsinline muted></video>
+        <canvas id="faceCanvas" style="position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 2;"></canvas>
         <div class="face-guide"><div class="face-guide-oval"></div></div>
         <div class="face-status-pill" id="faceVideoStatus">
           <i class="fas fa-spinner fa-spin"></i>
@@ -1350,6 +1351,88 @@ function stopFaceCamera() {
   }
   const video = document.getElementById('faceVideo');
   if (video) video.srcObject = null;
+  
+  // Tambahkan ini untuk menghapus kotak/nama
+  const canvas = document.getElementById('faceCanvas');
+  if (canvas) {
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+}
+
+/* === FUNGSI MENGGAMBAR KOTAK & NAMA === */
+function drawFaceLabel(box, name, videoEl) {
+  const canvas = document.getElementById('faceCanvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  
+  const cw = videoEl.clientWidth;
+  const ch = videoEl.clientHeight;
+  
+  // Handle High DPI (Retina Display)
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = cw * dpr;
+  canvas.height = ch * dpr;
+  ctx.scale(dpr, dpr);
+  
+  ctx.clearRect(0, 0, cw, ch);
+  
+  const vw = videoEl.videoWidth || cw;
+  const vh = videoEl.videoHeight || ch;
+  
+  // Kalkulasi matematika untuk object-fit: cover
+  const scaleX = cw / vw;
+  const scaleY = ch / vh;
+  const scale = Math.max(scaleX, scaleY);
+  
+  const renderW = vw * scale;
+  const renderH = vh * scale;
+  
+  const offsetX = (cw - renderW) / 2;
+  const offsetY = (ch - renderH) / 2;
+  
+  // Posisi wajah asli
+  const drawX = (box.x * scale) + offsetX;
+  const drawY = (box.y * scale) + offsetY;
+  const drawW = box.width * scale;
+  const drawH = box.height * scale;
+  
+  // Mirror posisi X karena kamera menggunakan scaleX(-1)
+  const mirroredX = cw - drawX - drawW;
+  
+  // 1. Gambar Kotak Hijau
+  ctx.strokeStyle = '#34d399';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(mirroredX, drawY, drawW, drawH);
+  
+  // 2. Gambar Label Nama
+  if (name) {
+    const fontSize = 16;
+    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+    const textWidth = ctx.measureText(name).width;
+    const padding = 8;
+    
+    const bgX = mirroredX + (drawW / 2) - (textWidth / 2) - padding;
+    const bgY = Math.max(10, drawY - fontSize - (padding * 2));
+    const bgW = textWidth + (padding * 2);
+    const bgH = fontSize + (padding * 1.5);
+    
+    // Background Label
+    ctx.fillStyle = 'rgba(52, 211, 153, 0.95)';
+    ctx.beginPath();
+    if (ctx.roundRect) {
+      ctx.roundRect(bgX, bgY, bgW, bgH, 8);
+    } else {
+      ctx.rect(bgX, bgY, bgW, bgH);
+    }
+    ctx.fill();
+    
+    // Text Nama
+    ctx.fillStyle = '#052e1f';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(name, mirroredX + (drawW / 2), bgY + (bgH / 2) + 1);
+  }
 }
 
 /* Loop deteksi + verifikasi. Return hasil verify atau error. */
@@ -1389,6 +1472,14 @@ async function detectAndVerifyFace(videoEl) {
       const verifyRes = await postJson({ action: 'face_verify', descriptor });
 
       if (verifyRes.success) {
+        // Gambar kotak dan nama di atas kepala
+        drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
+        
+        setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + verifyRes.nama, true);
+        
+        // Tahan 1.5 detik agar user melihat namanya
+        await new Promise(r => setTimeout(r, 1500));
+        
         return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
       }
       return {
