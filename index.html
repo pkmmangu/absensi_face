@@ -1,0 +1,1694 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#0b3b5c">
+  <title>SIMANGU — Absensi</title>
+  <link rel="icon" href="https://puskesmasmanguharjo.madiunkota.go.id/wp-content/uploads/2025/10/icon-app-pkm.png" type="image/x-icon">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/dist/face-api.min.js"></script>
+
+  <style>
+    /* =========================================================
+       BASE
+    ========================================================= */
+    :root {
+      --brand-green: #34d399;
+      --brand-blue: #3b82f6;
+      --brand: #0b3b5c;
+      --brand-dark: #062a42;
+      --text-primary: #0b2b3f;
+      --text-muted: #6b8aa3;
+      --bg-card: #ffffff;
+      --border-secondary: #eef3f9;
+      --success-bg: #d1fae5;
+      --success-text: #065f46;
+      --warning-bg: #fef3c7;
+      --warning-text: #92400e;
+      --error-bg: #fee2e2;
+      --error-text: #991b1b;
+      --info-bg: #dbeafe;
+      --info-text: #1a56a4;
+    }
+
+    * {
+      margin: 0; padding: 0; box-sizing: border-box;
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    html, body {
+      height: 100%; width: 100%;
+      background: var(--brand-dark);
+      color: var(--text-primary);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    body.reg-mode { overflow-y: auto; }
+    body.scan-mode { overflow: hidden; }
+
+    .hidden { display: none !important; }
+    .mode { position: fixed; inset: 0; }
+    .mode.hidden { display: none; }
+
+    /* =========================================================
+       SCANNER STAGE (barcode + face)
+    ========================================================= */
+    .scanner-stage {
+      position: fixed; inset: 0;
+      background: var(--brand-dark);
+      overflow: hidden;
+    }
+    #reader, #faceReader {
+      width: 100%; height: 100%;
+      background: var(--brand-dark);
+    }
+    #reader video, #faceReader video {
+      width: 100% !important; height: 100% !important;
+      object-fit: cover !important;
+      border-radius: 0 !important;
+    }
+    #reader__dashboard,
+    #reader__dashboard_section,
+    #reader__dashboard_section_csr,
+    #reader__dashboard_section_swaplink,
+    #reader__header_message,
+    #reader__scan_region img { display: none !important; }
+    #reader__scan_region { background: transparent !important; }
+
+    .scanner-badge {
+      position: absolute;
+      top: calc(20px + env(safe-area-inset-top, 0px));
+      left: 20px; z-index: 5;
+      background: rgba(11, 59, 92, 0.78);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 40px;
+      font-size: 12px; font-weight: 600;
+      display: flex; align-items: center; gap: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .scanner-badge .dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--brand-green);
+      animation: pulseDot 1.4s ease-in-out infinite;
+    }
+    @keyframes pulseDot {
+      0%,100% { opacity: 1; transform: scale(1); }
+      50%     { opacity: .5; transform: scale(.85); }
+    }
+
+    .bottom-overlay {
+      position: absolute;
+      left: 0; right: 0; bottom: 0; height: 220px;
+      background: linear-gradient(to top,
+        rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.35) 45%, transparent 100%);
+      pointer-events: none; z-index: 3;
+    }
+
+    /* =========================================================
+       ACTION BAR (barcode + face)
+    ========================================================= */
+    .action-bar {
+      position: fixed;
+      left: 0; right: 0;
+      bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+      z-index: 100;
+      display: flex; flex-direction: column;
+      gap: 12px; align-items: center;
+      padding: 0 16px;
+      pointer-events: none;
+    }
+    .action-bar.hidden { display: none; }
+
+    .action-btn {
+      pointer-events: auto;
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; max-width: 220px;
+      padding: 15px 24px;
+      border: 1px solid rgba(255,255,255,0.28);
+      border-radius: 40px;
+      background: rgba(255,255,255,0.14);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      color: #fff; font-size: 15px; font-weight: 600;
+      letter-spacing: .3px; cursor: pointer;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+      font-family: inherit;
+      transition: background .2s, transform .15s;
+      white-space: nowrap;
+    }
+    .action-btn i { font-size: 14px; }
+    .action-btn:active { transform: scale(0.96); background: rgba(255,255,255,0.22); }
+    .action-btn.btn-import {
+      background: rgba(52, 211, 153, 0.85);
+      border-color: #34d399;
+      color: #052e1f;
+    }
+
+    /* =========================================================
+       RESULT OVERLAY (shared)
+    ========================================================= */
+    .result-overlay {
+      position: fixed; inset: 0; z-index: 50;
+      display: none; align-items: center; justify-content: center;
+      padding: 20px 16px 120px;
+      background: rgba(2, 15, 26, 0.68);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      animation: fadeIn .25s ease;
+    }
+    .result-overlay.active { display: flex; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+    .result-card {
+      background: var(--bg-card);
+      border-radius: 24px; padding: 22px;
+      width: 100%; max-width: 420px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+      animation: popIn .3s cubic-bezier(.2,.9,.3,1.2);
+      max-height: 100%; overflow-y: auto;
+    }
+    @keyframes popIn {
+      from { opacity: 0; transform: translateY(14px) scale(.97); }
+      to   { opacity: 1; transform: translateY(0)    scale(1);   }
+    }
+    .result-header {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 14px; padding-bottom: 14px;
+      border-bottom: 1px solid var(--border-secondary);
+    }
+    .result-icon {
+      width: 48px; height: 48px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; flex-shrink: 0;
+    }
+    .result-icon.ok      { background: var(--success-bg); color: var(--success-text); }
+    .result-icon.err     { background: var(--error-bg);   color: var(--error-text);   }
+    .result-icon.warn    { background: var(--warning-bg); color: var(--warning-text); }
+    .result-icon.info    { background: var(--info-bg);    color: var(--info-text);    }
+    .result-icon.loading { background: #eef3f9;           color: #0b3b5c;            }
+    .result-icon.loading i { animation: spin .9s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .result-title-block { flex: 1; min-width: 0; }
+    .result-title { font-size: 17px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
+    .result-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
+
+    .result-grid { display: flex; flex-direction: column; gap: 2px; }
+    .result-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 0;
+      border-bottom: 1px solid var(--border-secondary);
+      gap: 12px;
+    }
+    .result-row:last-child { border-bottom: none; }
+    .result-label {
+      font-size: 12px; font-weight: 600;
+      text-transform: uppercase; letter-spacing: .4px;
+      color: var(--text-muted);
+      display: flex; align-items: center; gap: 6px;
+      flex-shrink: 0;
+    }
+    .result-label i { font-size: 13px; color: var(--brand-blue); width: 16px; text-align: center; }
+    .result-value {
+      font-size: 14px; font-weight: 600;
+      color: var(--text-primary);
+      text-align: right; word-break: break-word; min-width: 0;
+    }
+    .result-value.badge-late {
+      background: var(--error-bg); color: var(--error-text);
+      padding: 3px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+    }
+    .result-value.badge-ok {
+      background: var(--success-bg); color: var(--success-text);
+      padding: 3px 12px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+    }
+    .result-message {
+      font-size: 14px; line-height: 1.6;
+      color: var(--text-primary); text-align: center; padding: 8px 4px;
+    }
+
+    /* =========================================================
+       REGISTER MODE
+    ========================================================= */
+    #modeRegister {
+      position: fixed; inset: 0;
+      background: linear-gradient(160deg, var(--brand) 0%, var(--brand-dark) 100%);
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex; align-items: flex-start; justify-content: center;
+    }
+    #modeRegister.hidden { display: none; }
+
+    .reg-app { width: 100%; max-width: 480px; }
+    .reg-screen { display: none; }
+    .reg-screen.active { display: block; animation: fadeUp .3s ease; }
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    .reg-card {
+      background: #fff; border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+      margin-bottom: 16px;
+    }
+    .reg-brand {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 20px; padding-bottom: 16px;
+      border-bottom: 1px solid var(--border-secondary);
+    }
+    .reg-brand-logo {
+      width: 44px; height: 44px; border-radius: 12px;
+      background: var(--brand); color: #fff;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 20px;
+    }
+    .reg-brand-title { font-size: 16px; font-weight: 700; }
+    .reg-brand-sub { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+    .reg-form-group { margin-bottom: 16px; }
+    .reg-form-label {
+      display: block; font-size: 12px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: .4px;
+      color: var(--text-muted); margin-bottom: 8px;
+    }
+    .reg-form-input {
+      width: 100%; padding: 14px 16px;
+      border: 2px solid var(--border-secondary); border-radius: 12px;
+      font-size: 15px; font-family: inherit;
+      background: #fff; color: var(--text-primary);
+      transition: border-color .15s ease;
+    }
+    .reg-form-input:focus { outline: none; border-color: var(--brand); }
+
+    .reg-btn {
+      width: 100%; padding: 15px 20px;
+      border: none; border-radius: 12px;
+      font-size: 15px; font-weight: 700;
+      font-family: inherit; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      gap: 10px; transition: transform .12s, opacity .15s;
+    }
+    .reg-btn:active { transform: scale(0.98); }
+    .reg-btn:disabled { opacity: .55; cursor: not-allowed; }
+    .reg-btn-primary { background: var(--brand); color: #fff; }
+    .reg-btn-success { background: var(--brand-green); color: #052e1f; }
+    .reg-btn-outline {
+      background: transparent; color: var(--brand);
+      border: 2px solid var(--border-secondary);
+    }
+    .reg-btn-row { display: flex; gap: 10px; margin-top: 12px; }
+    .reg-btn-row .reg-btn { flex: 1; }
+
+    .reg-msg {
+      padding: 12px 16px; border-radius: 12px;
+      font-size: 13px; line-height: 1.5;
+      margin-bottom: 16px; display: none;
+    }
+    .reg-msg.show { display: block; }
+    .reg-msg.ok   { background: var(--success-bg); color: var(--success-text); }
+    .reg-msg.err  { background: var(--error-bg);   color: var(--error-text);   }
+    .reg-msg.warn { background: var(--warning-bg); color: var(--warning-text); }
+
+    .reg-video-wrap {
+      position: relative;
+      width: 100%; aspect-ratio: 4/3;
+      background: var(--brand-dark); border-radius: 16px;
+      overflow: hidden; margin-bottom: 16px;
+      display: none;
+    }
+    .reg-video-wrap.active { display: block; }
+    .reg-video-wrap video {
+      width: 100%; height: 100%; object-fit: cover;
+      transform: scaleX(-1);
+    }
+    .reg-video-guide {
+      position: absolute; inset: 0;
+      display: flex; align-items: center; justify-content: center;
+      pointer-events: none;
+    }
+    .reg-video-oval {
+      width: 55%; height: 75%;
+      border: 3px dashed rgba(52, 211, 153, .75);
+      border-radius: 50%;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.30);
+    }
+    .reg-video-status {
+      position: absolute;
+      bottom: 12px; left: 12px; right: 12px;
+      background: rgba(0,0,0,0.65); color: #fff;
+      padding: 10px 14px; border-radius: 10px;
+      font-size: 13px; font-weight: 600;
+      text-align: center; backdrop-filter: blur(8px);
+    }
+    .reg-progress {
+      height: 8px; background: var(--border-secondary);
+      border-radius: 20px; overflow: hidden;
+      margin-bottom: 10px;
+    }
+    .reg-progress-bar {
+      height: 100%; background: var(--brand-green);
+      width: 0%; transition: width .3s ease;
+    }
+    .reg-progress-label {
+      text-align: center; font-size: 13px;
+      color: var(--text-muted); font-weight: 600;
+      margin-bottom: 16px;
+    }
+    .reg-info-block {
+      background: #f4f8fc; border-radius: 12px;
+      padding: 14px 16px; margin-bottom: 16px;
+    }
+    .reg-info-row {
+      display: flex; justify-content: space-between;
+      padding: 6px 0; font-size: 13px;
+    }
+    .reg-info-row + .reg-info-row { border-top: 1px solid var(--border-secondary); }
+    .reg-info-label { color: var(--text-muted); font-weight: 600; }
+    .reg-info-value { color: var(--text-primary); font-weight: 700; text-align: right; }
+
+    .reg-step-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: #f4f8fc; color: var(--brand);
+      padding: 6px 14px; border-radius: 20px;
+      font-size: 12px; font-weight: 700;
+      margin-bottom: 14px;
+    }
+    .reg-step-badge .num {
+      width: 20px; height: 20px; border-radius: 50%;
+      background: var(--brand); color: #fff;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 11px;
+    }
+    .reg-done-icon {
+      width: 72px; height: 72px; border-radius: 50%;
+      background: var(--success-bg); color: var(--success-text);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 32px; margin: 0 auto 16px;
+    }
+    .reg-text-center { text-align: center; }
+    .reg-mt-16 { margin-top: 16px; }
+    .reg-hidden { display: none !important; }
+
+    /* =========================================================
+       DENIED
+    ========================================================= */
+    #modeDenied {
+      display: flex; align-items: center; justify-content: center;
+      padding: 20px;
+      background: var(--brand-dark);
+    }
+    #modeDenied.hidden { display: none; }
+    .denied-card {
+      background: #fff; border-radius: 20px; padding: 32px 24px;
+      max-width: 420px; width: 100%; text-align: center;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.3);
+    }
+    .denied-icon {
+      width: 64px; height: 64px; border-radius: 50%;
+      background: var(--warning-bg); color: var(--warning-text);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 28px; margin: 0 auto 16px;
+    }
+    .denied-title { font-size: 18px; font-weight: 700; margin-bottom: 8px; }
+    .denied-text { font-size: 14px; color: var(--text-muted); line-height: 1.6; }
+  </style>
+</head>
+<body>
+
+<!-- =========================================================
+     MODE: BARCODE SCAN
+========================================================= -->
+<div id="modeBarcode" class="mode hidden">
+  <div class="scanner-stage">
+    <div id="reader"></div>
+    <div class="bottom-overlay"></div>
+    <div class="scanner-badge" id="statusBadge">
+      <span class="dot"></span>
+      <span>Memindai…</span>
+    </div>
+  </div>
+  <input type="file" id="fileInput" accept="image/*" class="hidden">
+  <div id="fileQrReader"
+       style="position:fixed;left:-9999px;top:-9999px;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;"></div>
+</div>
+
+<!-- =========================================================
+     MODE: FACE SCAN
+========================================================= -->
+<div id="modeFace" class="mode hidden">
+  <div class="scanner-stage">
+    <div id="faceReader"></div>
+    <div class="bottom-overlay"></div>
+    <div class="scanner-badge" id="faceStatusBadge">
+      <span class="dot"></span>
+      <span>Memuat…</span>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     MODE: REGISTER
+========================================================= -->
+<div id="modeRegister" class="mode hidden">
+  <div class="reg-app">
+
+    <!-- Screen: Secret -->
+    <section id="regScreenSecret" class="reg-screen active">
+      <div class="reg-card">
+        <div class="reg-brand">
+          <div class="reg-brand-logo"><i class="fas fa-user-shield"></i></div>
+          <div>
+            <div class="reg-brand-title">Registrasi Wajah</div>
+            <div class="reg-brand-sub">SIMANGU — Panel Admin</div>
+          </div>
+        </div>
+        <div id="regSecretMsg" class="reg-msg err"></div>
+        <div class="reg-form-group">
+          <label class="reg-form-label" for="regSecretInput">Admin Secret</label>
+          <input type="password" id="regSecretInput" class="reg-form-input"
+                 placeholder="Masukkan admin secret" autocomplete="off">
+        </div>
+        <button class="reg-btn reg-btn-primary" id="regBtnEnter" type="button">
+          <i class="fas fa-arrow-right-to-bracket"></i> Masuk
+        </button>
+      </div>
+    </section>
+
+    <!-- Screen: Main (step NIK / Capture / Save) -->
+    <section id="regScreenMain" class="reg-screen">
+      <div class="reg-card">
+        <div class="reg-brand">
+          <div class="reg-brand-logo"><i class="fas fa-face-smile"></i></div>
+          <div>
+            <div class="reg-brand-title">Registrasi Wajah</div>
+            <div class="reg-brand-sub" id="regAdminBadge">Admin aktif</div>
+          </div>
+        </div>
+
+        <div id="regMainMsg" class="reg-msg"></div>
+
+        <!-- Step 1: NIK -->
+        <div id="regStepNik">
+          <div class="reg-step-badge"><span class="num">1</span> Identifikasi Pegawai</div>
+          <div class="reg-form-group">
+            <label class="reg-form-label" for="regNikInput">NIK / NIP</label>
+            <input type="text" id="regNikInput" class="reg-form-input"
+                   placeholder="Contoh: 19780512 200501 1 001" autocomplete="off">
+          </div>
+          <button class="reg-btn reg-btn-primary" id="regBtnCheckNik" type="button">
+            <i class="fas fa-magnifying-glass"></i> Cek NIK
+          </button>
+        </div>
+
+        <!-- Step 2: Capture -->
+        <div id="regStepCapture" class="reg-hidden">
+          <div class="reg-step-badge"><span class="num">2</span> Rekam Wajah</div>
+          <div class="reg-info-block" id="regInfoPegawai"></div>
+          <div class="reg-video-wrap" id="regVideoWrap">
+            <video id="regVideo" autoplay playsinline muted></video>
+            <div class="reg-video-guide"><div class="reg-video-oval"></div></div>
+            <div class="reg-video-status" id="regVideoStatus">Posisikan wajah di dalam oval</div>
+          </div>
+          <div class="reg-progress" id="regProgressWrap" style="display:none">
+            <div class="reg-progress-bar" id="regProgressBar"></div>
+          </div>
+          <div class="reg-progress-label reg-hidden" id="regProgressLabel">0 / 3 sampel</div>
+          <button class="reg-btn reg-btn-success reg-mt-16" id="regBtnRecord" type="button">
+            <i class="fas fa-camera"></i> Mulai Rekam (3 Sampel)
+          </button>
+          <div class="reg-btn-row">
+            <button class="reg-btn reg-btn-outline" id="regBtnBackNik" type="button">
+              <i class="fas fa-arrow-left"></i> Kembali
+            </button>
+          </div>
+        </div>
+
+        <!-- Step 3: Save -->
+        <div id="regStepSave" class="reg-hidden">
+          <div class="reg-step-badge"><span class="num">3</span> Simpan</div>
+          <div class="reg-info-block" id="regInfoSave"></div>
+          <button class="reg-btn reg-btn-success" id="regBtnSave" type="button">
+            <i class="fas fa-floppy-disk"></i> Simpan Data Wajah
+          </button>
+          <div class="reg-btn-row">
+            <button class="reg-btn reg-btn-outline" id="regBtnRetake" type="button">
+              <i class="fas fa-rotate-left"></i> Rekam Ulang
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Screen: Done -->
+    <section id="regScreenDone" class="reg-screen">
+      <div class="reg-card reg-text-center">
+        <div class="reg-done-icon"><i class="fas fa-check"></i></div>
+        <h2 style="font-size:20px;margin-bottom:8px;">Registrasi Berhasil</h2>
+        <p style="color:var(--text-muted);font-size:14px;line-height:1.6;margin-bottom:20px;"
+           id="regDoneText">Data wajah telah tersimpan.</p>
+        <div class="reg-info-block" id="regDoneInfo"></div>
+        <button class="reg-btn reg-btn-primary" id="regBtnAnother" type="button">
+          <i class="fas fa-user-plus"></i> Registrasi Pegawai Lain
+        </button>
+      </div>
+    </section>
+
+  </div>
+</div>
+
+<!-- =========================================================
+     MODE: DENIED
+========================================================= -->
+<div id="modeDenied" class="mode hidden">
+  <div class="denied-card">
+    <div class="denied-icon"><i class="fas fa-lock"></i></div>
+    <div class="denied-title">Akses Ditolak</div>
+    <div class="denied-text">
+      Akses dengan Aplikasi SIMANGU untuk melakukan Absensi.
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================
+     GLOBAL ACTION BAR (barcode + face)
+========================================================= -->
+<div class="action-bar hidden" id="globalActionBar">
+  <button class="action-btn btn-import hidden" id="importBtn" type="button">
+    <i class="fas fa-image"></i><span>Import</span>
+  </button>
+  <button class="action-btn" id="actionBtn" type="button">
+    <i class="fas fa-xmark"></i><span id="actionBtnLabel">Batal</span>
+  </button>
+</div>
+
+<!-- =========================================================
+     RESULT OVERLAY (shared)
+========================================================= -->
+<div class="result-overlay" id="resultOverlay">
+  <div class="result-card">
+    <div class="result-header">
+      <div class="result-icon" id="resultIcon"><i class="fas fa-spinner"></i></div>
+      <div class="result-title-block">
+        <div class="result-title" id="resultTitle">Memproses…</div>
+        <div class="result-subtitle" id="resultSubtitle"></div>
+      </div>
+    </div>
+    <div class="result-grid" id="resultGrid"></div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   CONFIG
+========================================================= */
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzup4hPq9gLj469YznW3JrJasyFgDUFTCBKqERTUaMPRPMNAS988EWO1q2IyjS_zzf7/exec';
+
+const LOKASI_DIIZINKAN = [
+  { nama: 'Puskesmas Manguharjo Kota Madiun', lat: -7.6279488, lng: 111.5108823 },
+  { nama: 'Test',                              lat: -7.6508941, lng: 111.5341533 }
+];
+const MAX_RADIUS_METERS = 100;
+
+const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13/model/';
+const FACE_SAMPLE_COUNT = 3;
+const FACE_MIN_SCORE = 0.6;
+const FACE_MAX_ATTEMPTS = 8;
+
+/* =========================================================
+   URL PARSING
+   Mendukung:
+     ?face=register?user=123&secret=xxx
+     ?face=register&user=123&secret=xxx
+     ?face=1
+     ?user=123?import=enable
+========================================================= */
+(function parseUrl() {
+  const params = new URLSearchParams(window.location.search);
+
+  let faceRaw = params.get('face') || '';
+  let userVal = params.get('user') || '';
+  let secVal  = params.get('secret') || '';
+  let impVal  = params.get('import') || '';
+
+  // Handle double-? pattern: face=register?user=123
+  if (faceRaw.includes('?')) {
+    const parts = faceRaw.split('?');
+    faceRaw = parts[0];
+    const sub = new URLSearchParams(parts.slice(1).join('?'));
+    if (!userVal) userVal = sub.get('user') || '';
+    if (!secVal)  secVal  = sub.get('secret') || '';
+  }
+
+  // Handle legacy: ?user=123?import=enable
+  if (userVal.includes('?import=')) {
+    const parts = userVal.split('?import=');
+    userVal = parts[0];
+    impVal  = parts[1] || impVal;
+  }
+
+  faceRaw = faceRaw.toLowerCase().trim();
+  window.__URL__ = {
+    faceRaw: faceRaw,
+    userId:  userVal.trim(),
+    secret:  secVal.trim(),
+    import:  impVal.trim(),
+    isRegister: faceRaw === 'register',
+    isFaceScan: faceRaw !== '' && faceRaw !== 'register' && faceRaw !== '0' && faceRaw !== 'false',
+    isBarcode:  faceRaw === '' && userVal.trim() !== '',
+  };
+})();
+
+const URL_CFG = window.__URL__;
+const USER_ID  = URL_CFG.userId;
+const SECRET_URL = URL_CFG.secret;
+const IMPORT_ENABLED = URL_CFG.isBarcode && URL_CFG.import.toLowerCase() === 'enable';
+
+/* =========================================================
+   GLOBAL STATE
+========================================================= */
+let ACTIVE_MODE = '';
+let pendingRetry = null;
+
+/* =========================================================
+   SHARED HELPERS
+========================================================= */
+function postJson(payload) {
+  return fetch(APPS_SCRIPT_URL, {
+    method: 'POST',
+    redirect: 'follow',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  })
+  .then(r => r.text())
+  .then(t => {
+    try { return JSON.parse(t); }
+    catch (e) { throw new Error('Respons server tidak valid'); }
+  });
+}
+
+function showMode(id) {
+  document.querySelectorAll('.mode').forEach(m => m.classList.add('hidden'));
+  const el = document.getElementById(id);
+  if (el) el.classList.remove('hidden');
+
+  document.body.classList.remove('reg-mode', 'scan-mode');
+  if (id === 'modeRegister' || id === 'modeDenied') {
+    if (id === 'modeRegister') document.body.classList.add('reg-mode');
+  } else {
+    document.body.classList.add('scan-mode');
+  }
+}
+
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/* =========================================================
+   SHARED: ACTION BAR & RESULT OVERLAY
+========================================================= */
+const actionBar      = document.getElementById('globalActionBar');
+const actionBtn      = document.getElementById('actionBtn');
+const actionBtnLabel = document.getElementById('actionBtnLabel');
+const importBtn      = document.getElementById('importBtn');
+const resultOverlay  = document.getElementById('resultOverlay');
+const resultIcon     = document.getElementById('resultIcon');
+const resultTitle    = document.getElementById('resultTitle');
+const resultSubtitle = document.getElementById('resultSubtitle');
+const resultGrid     = document.getElementById('resultGrid');
+
+function showActionBar() { actionBar.classList.remove('hidden'); }
+function hideActionBar() { actionBar.classList.add('hidden'); }
+function setActionLabel(t) { actionBtnLabel.textContent = t; }
+function showImportBtn() { if (IMPORT_ENABLED) importBtn.classList.remove('hidden'); }
+function hideImportBtn() { importBtn.classList.add('hidden'); }
+
+actionBtn.addEventListener('click', () => {
+  if (pendingRetry) {
+    const fn = pendingRetry;
+    pendingRetry = null;
+    fn();
+    return;
+  }
+  window.close();
+  setTimeout(fallbackCloseScreen, 400);
+});
+
+function setStatus(text, active) {
+  const id = ACTIVE_MODE === 'face' ? 'faceStatusBadge' : 'statusBadge';
+  const badge = document.getElementById(id);
+  if (!badge) return;
+  const lbl = badge.querySelector('span:last-child');
+  if (lbl) lbl.textContent = text;
+  badge.style.opacity = active ? '1' : '0.7';
+}
+
+function showLoading(text, options = {}) {
+  pendingRetry = null;
+  resultIcon.className = 'result-icon loading';
+  resultIcon.innerHTML = '<i class="fas fa-spinner"></i>';
+  resultTitle.textContent = text || 'Memproses…';
+  resultSubtitle.textContent = '';
+  resultGrid.innerHTML = '';
+  resultOverlay.classList.add('active');
+
+  hideActionBar();
+  if (!options.keepImport) hideImportBtn();
+}
+
+function showResult(type, title, subtitle, rows, message) {
+  pendingRetry = null;
+  const iconMap = {
+    ok: 'fa-circle-check', err: 'fa-circle-xmark',
+    warn: 'fa-circle-info', info: 'fa-circle-info'
+  };
+  resultIcon.className = 'result-icon ' + type;
+  resultIcon.innerHTML = '<i class="fas ' + (iconMap[type] || iconMap.info) + '"></i>';
+  resultTitle.textContent = title || '';
+  resultSubtitle.textContent = subtitle || '';
+  resultGrid.innerHTML = '';
+
+  if (message) {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'result-message';
+    msgEl.textContent = message;
+    resultGrid.appendChild(msgEl);
+  }
+
+  if (rows && rows.length) {
+    rows.forEach(row => {
+      const rowEl = document.createElement('div');
+      rowEl.className = 'result-row';
+      const labelEl = document.createElement('div');
+      labelEl.className = 'result-label';
+      labelEl.innerHTML = '<i class="fas ' + (row.icon || 'fa-circle') + '"></i><span>' + row.label + '</span>';
+      const valueEl = document.createElement('div');
+      valueEl.className = 'result-value' + (row.cls ? ' ' + row.cls : '');
+      valueEl.textContent = row.value;
+      rowEl.appendChild(labelEl);
+      rowEl.appendChild(valueEl);
+      resultGrid.appendChild(rowEl);
+    });
+  }
+
+  resultOverlay.classList.add('active');
+  setActionLabel('Tutup');
+  showActionBar();
+  hideImportBtn();
+}
+
+function hideOverlay() {
+  resultOverlay.classList.remove('active');
+  setActionLabel('Batal');
+  showActionBar();
+  if (IMPORT_ENABLED) showImportBtn();
+}
+
+function kirimKeOpener(res) {
+  if (window.opener && !window.opener.closed) {
+    try { window.opener.postMessage({ type: 'SCAN_RESULT', data: res }, '*'); }
+    catch (e) {}
+  }
+}
+
+function fallbackCloseScreen() {
+  if (document.getElementById('fallbackClose')) return;
+  const el = document.createElement('div');
+  el.id = 'fallbackClose';
+  el.style.cssText = `
+    position:fixed;inset:0;z-index:9999;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:14px;padding:24px;text-align:center;
+    font-family:'Inter',sans-serif;background:#0b3b5c;color:#fff;`;
+  el.innerHTML = `
+    <i class="fas fa-circle-check" style="font-size:44px;color:#34d399;"></i>
+    <div style="font-size:19px;font-weight:700;">Selesai</div>
+    <div style="font-size:14px;color:rgba(255,255,255,.75);max-width:280px;line-height:1.6;">
+      Silakan tutup tab ini untuk kembali ke aplikasi.
+    </div>
+    <button onclick="window.close()" style="margin-top:8px;padding:13px 30px;border:none;
+            border-radius:40px;background:#34d399;color:#062e22;font-weight:700;
+            font-size:15px;cursor:pointer;font-family:inherit;">
+      <i class="fas fa-xmark"></i> Tutup Tab
+    </button>`;
+  document.body.appendChild(el);
+}
+
+/* =========================================================
+   SHARED: GEOFENCING
+========================================================= */
+function hitungJarak(lat1, lon1, lat2, lon2) {
+  const R = 6371000;
+  const toRad = d => d * Math.PI / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a = Math.sin(dLat/2)**2 +
+            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function ambilLokasi() {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) return reject(new Error('Browser tidak mendukung layanan lokasi.'));
+    navigator.geolocation.getCurrentPosition(
+      pos => resolve(pos),
+      err => {
+        let msg = 'Gagal mendapatkan lokasi.';
+        if (err.code === 1) msg = 'Izin lokasi ditolak. Aktifkan izin lokasi di pengaturan browser.';
+        if (err.code === 2) msg = 'Lokasi tidak tersedia. Coba di area terbuka.';
+        if (err.code === 3) msg = 'Waktu permintaan lokasi habis. Coba lagi.';
+        reject(new Error(msg));
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+    );
+  });
+}
+
+async function cekDalamRadius() {
+  let pos;
+  try { pos = await ambilLokasi(); }
+  catch (err) { return { ok: false, message: err.message }; }
+
+  const userLat = pos.coords.latitude;
+  const userLng = pos.coords.longitude;
+  let terdekat = null;
+  let jarakTerdekat = Infinity;
+
+  for (const lok of LOKASI_DIIZINKAN) {
+    const jarak = hitungJarak(userLat, userLng, lok.lat, lok.lng);
+    if (jarak < jarakTerdekat) { jarakTerdekat = jarak; terdekat = lok; }
+  }
+
+  if (!terdekat || jarakTerdekat > MAX_RADIUS_METERS) {
+    const j = Math.round(jarakTerdekat);
+    return {
+      ok: false,
+      jarak: j,
+      message: 'Anda berada di luar area absensi. Jarak ke ' +
+        (terdekat ? terdekat.nama : 'lokasi terdaftar') + ' sekitar ' + j +
+        ' m (maksimal ' + MAX_RADIUS_METERS + ' m).'
+    };
+  }
+  return { ok: true, lokasi: terdekat.nama, jarak: Math.round(jarakTerdekat) };
+}
+
+/* =========================================================
+   ROUTER
+========================================================= */
+window.addEventListener('load', () => {
+  if (URL_CFG.isRegister) return bootRegister();
+  if (URL_CFG.isFaceScan) return bootFaceScan();
+  if (URL_CFG.isBarcode)  return bootBarcodeScan();
+  return bootDenied();
+});
+
+function bootDenied() {
+  showMode('modeDenied');
+  hideActionBar();
+}
+
+/* =========================================================
+   MODE: BARCODE SCAN
+========================================================= */
+let html5QrCode = null;
+let barcodeScanning = false;
+let barcodeStarting = false;
+let lastScan = '';
+let lastScanTime = 0;
+let fileQrCode = null;
+
+function bootBarcodeScan() {
+  ACTIVE_MODE = 'barcode';
+  showMode('modeBarcode');
+  setStatus('Memeriksa lokasi…', true);
+  showLoading('Memeriksa lokasi Anda…');
+
+  cekDalamRadius().then(cek => {
+    if (!cek.ok) {
+      setStatus('Di luar area', false);
+      showResult('err', 'Di Luar Area',
+        'Absensi hanya bisa dilakukan di Puskesmas Manguharjo Kota Madiun',
+        [], cek.message || '');
+      return;
+    }
+    hideOverlay();
+    setStatus('Memindai…', true);
+    startBarcodeScan();
+  });
+}
+
+async function startBarcodeScan() {
+  if (barcodeScanning || barcodeStarting || !USER_ID) return;
+  barcodeStarting = true;
+  try {
+    if (!html5QrCode) html5QrCode = new Html5Qrcode('reader');
+    const shortest = Math.min(window.innerWidth, window.innerHeight);
+    const boxSize = Math.max(200, Math.min(280, Math.floor(shortest * 0.7)));
+    const config = { fps: 10, qrbox: { width: boxSize, height: boxSize } };
+
+    try {
+      await html5QrCode.start({ facingMode: 'environment' }, config, onBarcodeScan, () => {});
+    } catch (err) {
+      if (err && err.name === 'NotFoundError') {
+        const cams = await Html5Qrcode.getCameras();
+        if (!cams.length) throw err;
+        await html5QrCode.start(cams[0].id, config, onBarcodeScan, () => {});
+      } else { throw err; }
+    }
+    barcodeScanning = true;
+    setStatus('Memindai…', true);
+  } catch (err) {
+    setStatus('Kamera gagal', false);
+    showBarcodeCameraError(err);
+  } finally {
+    barcodeStarting = false;
+  }
+}
+
+function stopBarcodeScan() {
+  if (!html5QrCode) { barcodeScanning = false; return; }
+  html5QrCode.stop()
+    .then(() => { try { html5QrCode.clear(); } catch (e) {} })
+    .catch(() => {})
+    .finally(() => { html5QrCode = null; barcodeScanning = false; });
+}
+
+function showBarcodeCameraError(err) {
+  const reader = document.getElementById('reader');
+  const msg = (err && err.name === 'NotAllowedError')
+    ? 'Izin kamera ditolak. Aktifkan izin kamera di pengaturan browser, lalu coba lagi.'
+    : 'Kamera tidak dapat diakses. Pastikan halaman dibuka via HTTPS dan kamera tidak dipakai aplikasi lain.';
+  reader.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+                gap:14px;padding:28px 20px;text-align:center;color:#fff;min-height:100vh;">
+      <i class="fas fa-video-slash" style="font-size:36px;color:#f59e0b;"></i>
+      <div style="font-size:14px;line-height:1.6;max-width:280px;opacity:.9;">${msg}</div>
+      <button id="retryCam" style="padding:12px 26px;border:none;border-radius:40px;
+              background:#34d399;color:#062e22;font-weight:700;font-size:14px;
+              cursor:pointer;font-family:inherit;">
+        <i class="fas fa-rotate-right"></i> Coba Lagi
+      </button>
+    </div>`;
+  document.getElementById('retryCam').onclick = () => {
+    reader.innerHTML = '';
+    html5QrCode = null;
+    startBarcodeScan();
+  };
+}
+
+async function onBarcodeScan(decodedText) {
+  if (resultOverlay.classList.contains('active')) return;
+  const now = Date.now();
+  if (decodedText === lastScan && now - lastScanTime < 3000) return;
+  lastScan = decodedText;
+  lastScanTime = now;
+  stopBarcodeScan();
+  await prosesHasilBarcode(decodedText);
+}
+
+async function prosesHasilBarcode(decodedText) {
+  hideImportBtn();
+  setStatus('Memeriksa lokasi…', true);
+  showLoading('Memeriksa lokasi Anda…');
+
+  const cek = await cekDalamRadius();
+  if (!cek.ok) {
+    setStatus('Di luar area', false);
+    showResult('err', 'Di Luar Area',
+      'Absensi hanya bisa dilakukan di Puskesmas Manguharjo Kota Madiun',
+      [], cek.message || '');
+    return;
+  }
+
+  setStatus('Memproses…', true);
+  showLoading('Memproses data…');
+
+  postJson({ barcode: String(decodedText), user: String(USER_ID) })
+    .then(res => {
+      setStatus('Selesai', false);
+      if (res.duplicate) {
+        showResult('warn', 'Sudah Absen',
+          res.message || 'Data sudah tercatat',
+          [
+            { label: 'Nama',    value: res.nama || '-',    icon: 'fa-user' },
+            { label: 'Tanggal', value: res.tanggal || '-', icon: 'fa-calendar-day' },
+            { label: 'Jam',     value: res.absen || '-',   icon: 'fa-clock' }
+          ]);
+        kirimKeOpener(res);
+        return;
+      }
+      if (!res.success) {
+        showResult('err', 'Absensi Ditolak', '', [], res.message || '');
+        kirimKeOpener(res);
+        return;
+      }
+      tampilkanSukses(res);
+    })
+    .catch(err => {
+      setStatus('Error', false);
+      showResult('err', 'Error Jaringan', err.message || 'Gagal menghubungi server');
+    });
+}
+
+function tampilkanSukses(res) {
+  const jenisLabelMap = { apel: 'Apel', masuk: 'Masuk', pulang: 'Pulang' };
+  const jenisLabel = jenisLabelMap[res.jenis] || 'Absensi';
+  const ket = res.keterangan || '';
+  let ketCls = 'badge-ok';
+  if (/terlambat/i.test(ket)) ketCls = 'badge-late';
+  const ketBadge = ket ? { value: ket, cls: ketCls } : { value: 'Tepat Waktu', cls: 'badge-ok' };
+
+  showResult('ok', jenisLabel + ' Berhasil', 'Data absensi tercatat di sistem',
+    [
+      { label: 'Nama',       value: res.nama || '-',    icon: 'fa-user' },
+      { label: 'Tanggal',    value: res.tanggal || '-', icon: 'fa-calendar-day' },
+      { label: 'Jam Absen',  value: res.absen || '-',   icon: 'fa-clock' },
+      { label: 'Keterangan', ...ketBadge,               icon: 'fa-circle-info' }
+    ]);
+  kirimKeOpener(res);
+}
+
+/* --- Import QR (barcode only) --- */
+if (IMPORT_ENABLED) {
+  const fileInput = document.getElementById('fileInput');
+  importBtn.addEventListener('click', () => {
+    if (!USER_ID) return;
+    fileInput.value = '';
+    fileInput.click();
+  });
+  fileInput.addEventListener('change', (e) => {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    prosesFileQrBarcode(file);
+  });
+}
+
+function getFileQrCode() {
+  if (!fileQrCode) fileQrCode = new Html5Qrcode('fileQrReader', { verbose: false });
+  return fileQrCode;
+}
+
+async function prosesFileQrBarcode(file) {
+  hideImportBtn();
+  setStatus('Membaca gambar…', true);
+  showLoading('Membaca QR dari gambar…');
+  let decodedText = null;
+  try {
+    const inst = getFileQrCode();
+    if (typeof inst.scanFileV2 === 'function') {
+      const r = await inst.scanFileV2(file, false);
+      decodedText = r.decodedText;
+    } else {
+      decodedText = await inst.scanFile(file, false);
+    }
+  } catch (err) {
+    setStatus('QR tidak terbaca', false);
+    showResult('err', 'QR Tidak Terbaca', '', [],
+      'Gambar tidak mengandung QR yang valid. Pastikan QR terlihat jelas, tidak blur, dan tidak terpotong.');
+    pendingRetry = () => { hideOverlay(); };
+    setActionLabel('Coba Lagi');
+    return;
+  }
+  if (!decodedText) {
+    setStatus('QR tidak terbaca', false);
+    showResult('err', 'QR Tidak Terbaca', '', [], 'Gambar tidak mengandung QR yang valid.');
+    pendingRetry = () => { hideOverlay(); };
+    setActionLabel('Coba Lagi');
+    return;
+  }
+  await prosesHasilBarcode(decodedText.trim());
+}
+
+/* =========================================================
+   MODE: FACE SCAN
+========================================================= */
+let faceModelsLoaded = false;
+let faceFlowRunning = false;
+
+function bootFaceScan() {
+  ACTIVE_MODE = 'face';
+  showMode('modeFace');
+  hideImportBtn();
+  runFaceFlow();
+}
+
+async function loadFaceModels() {
+  if (faceModelsLoaded) return;
+  if (typeof faceapi === 'undefined') throw new Error('Library face-api gagal dimuat.');
+  await Promise.all([
+    faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
+    faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL),
+    faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
+  ]);
+  faceModelsLoaded = true;
+}
+
+async function captureFaceDescriptor(videoEl, maxAttempts = 20) {
+  let descriptor = null;
+  for (let i = 0; i < maxAttempts && !descriptor; i++) {
+    await new Promise(r => setTimeout(r, 400));
+    try {
+      const det = await faceapi
+        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (det) descriptor = Array.from(det.descriptor);
+    } catch (e) {}
+  }
+  return descriptor;
+}
+
+async function runFaceFlow() {
+  if (faceFlowRunning) return;
+  faceFlowRunning = true;
+  try {
+    setStatus('Memuat model wajah…', true);
+    showLoading('Memuat pengenal wajah…');
+    try { await loadFaceModels(); }
+    catch (e) {
+      setStatus('Gagal memuat model', false);
+      showResult('err', 'Gagal Memuat Model', '', [],
+        e.message + ' Periksa koneksi internet dan coba lagi.');
+      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
+      setActionLabel('Coba Lagi');
+      return;
+    }
+
+    setStatus('Mendeteksi wajah…', true);
+    showLoading('Mendeteksi wajah…');
+
+    let stream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        audio: false
+      });
+    } catch (e) {
+      setStatus('Kamera gagal', false);
+      showResult('err', 'Kamera Tidak Bisa Diakses', '', [],
+        'Tidak bisa mengakses kamera depan: ' + (e.message || ''));
+      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
+      setActionLabel('Coba Lagi');
+      return;
+    }
+
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.playsInline = true;
+    video.muted = true;
+    video.style.cssText = 'width:100%;height:100%;object-fit:cover;transform:scaleX(-1);';
+    const faceReader = document.getElementById('faceReader');
+    faceReader.innerHTML = '';
+    faceReader.appendChild(video);
+    await new Promise(resolve => {
+      if (video.readyState >= 2) return resolve();
+      video.onloadedmetadata = () => resolve();
+    });
+    await video.play();
+
+    const descriptor = await captureFaceDescriptor(video, 20);
+    stream.getTracks().forEach(t => t.stop());
+    faceReader.innerHTML = '';
+
+    if (!descriptor) {
+      setStatus('Wajah tidak terdeteksi', false);
+      showResult('err', 'Wajah Tidak Terdeteksi', '', [],
+        'Pastikan wajah terlihat jelas, pencahayaan cukup, dan kamera tidak blur.');
+      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
+      setActionLabel('Coba Lagi');
+      return;
+    }
+
+    setStatus('Memverifikasi…', true);
+    showLoading('Memverifikasi wajah…');
+    let verifyRes;
+    try { verifyRes = await postJson({ action: 'face_verify', descriptor }); }
+    catch (e) {
+      setStatus('Error jaringan', false);
+      showResult('err', 'Error Jaringan', '', [], e.message);
+      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
+      setActionLabel('Coba Lagi');
+      return;
+    }
+
+    if (!verifyRes.success) {
+      setStatus('Wajah tidak dikenali', false);
+      showResult('err', 'Wajah Tidak Dikenali', '', [],
+        verifyRes.message || 'Coba lagi dengan pencahayaan lebih baik.');
+      pendingRetry = () => { hideOverlay(); runFaceFlow(); };
+      setActionLabel('Coba Lagi');
+      return;
+    }
+
+    const nik = verifyRes.nik;
+    const nama = verifyRes.nama;
+
+    setStatus('Memeriksa lokasi…', true);
+    showLoading('Memeriksa lokasi Anda…');
+    const cek = await cekDalamRadius();
+    if (!cek.ok) {
+      setStatus('Di luar area', false);
+      showResult('err', 'Di Luar Area',
+        'Absensi hanya bisa dilakukan di Puskesmas Manguharjo Kota Madiun',
+        [
+          { label: 'Nama',  value: nama, icon: 'fa-user' },
+          { label: 'Jarak', value: (cek.jarak || '-') + ' m', icon: 'fa-location-dot' }
+        ],
+        cek.message || '');
+      return;
+    }
+
+    setStatus('Menyimpan absensi…', true);
+    showLoading('Menyimpan absensi…');
+    let saveRes;
+    try { saveRes = await postJson({ action: 'face_absensi', nik }); }
+    catch (e) {
+      setStatus('Error jaringan', false);
+      showResult('err', 'Error Jaringan', '', [], e.message);
+      return;
+    }
+
+    if (saveRes.duplicate) {
+      setStatus('Sudah absen', false);
+      showResult('warn', 'Sudah Absen', saveRes.message || 'Data sudah tercatat',
+        [
+          { label: 'Nama',    value: saveRes.nama || nama, icon: 'fa-user' },
+          { label: 'Tanggal', value: saveRes.tanggal || '-', icon: 'fa-calendar-day' },
+          { label: 'Jam',     value: saveRes.absen || '-',   icon: 'fa-clock' }
+        ]);
+      kirimKeOpener(saveRes);
+      return;
+    }
+    if (!saveRes.success) {
+      setStatus('Ditolak', false);
+      showResult('err', 'Absensi Ditolak', '', [], saveRes.message || '');
+      kirimKeOpener(saveRes);
+      return;
+    }
+
+    setStatus('Selesai', false);
+    tampilkanSukses(saveRes);
+  } finally {
+    faceFlowRunning = false;
+  }
+}
+
+/* =========================================================
+   MODE: REGISTER
+========================================================= */
+let regAdminSecret = '';
+let regCurrentNik = '';
+let regCurrentNama = '';
+let regDescriptors = [];
+let regModelsReady = false;
+let regVideoStream = null;
+let regRecording = false;
+
+/* DOM refs */
+const regScreenSecret = document.getElementById('regScreenSecret');
+const regScreenMain   = document.getElementById('regScreenMain');
+const regScreenDone   = document.getElementById('regScreenDone');
+const regSecretInput  = document.getElementById('regSecretInput');
+const regSecretMsg    = document.getElementById('regSecretMsg');
+const regBtnEnter     = document.getElementById('regBtnEnter');
+const regAdminBadge   = document.getElementById('regAdminBadge');
+const regMainMsg      = document.getElementById('regMainMsg');
+const regStepNik      = document.getElementById('regStepNik');
+const regStepCapture  = document.getElementById('regStepCapture');
+const regStepSave     = document.getElementById('regStepSave');
+const regNikInput     = document.getElementById('regNikInput');
+const regBtnCheckNik  = document.getElementById('regBtnCheckNik');
+const regInfoPegawai  = document.getElementById('regInfoPegawai');
+const regInfoSave     = document.getElementById('regInfoSave');
+const regVideo        = document.getElementById('regVideo');
+const regVideoWrap    = document.getElementById('regVideoWrap');
+const regVideoStatus  = document.getElementById('regVideoStatus');
+const regProgressWrap = document.getElementById('regProgressWrap');
+const regProgressBar  = document.getElementById('regProgressBar');
+const regProgressLabel= document.getElementById('regProgressLabel');
+const regBtnRecord    = document.getElementById('regBtnRecord');
+const regBtnBackNik   = document.getElementById('regBtnBackNik');
+const regBtnSave      = document.getElementById('regBtnSave');
+const regBtnRetake    = document.getElementById('regBtnRetake');
+const regBtnAnother   = document.getElementById('regBtnAnother');
+const regDoneText     = document.getElementById('regDoneText');
+const regDoneInfo     = document.getElementById('regDoneInfo');
+
+function showRegScreen(el) {
+  [regScreenSecret, regScreenMain, regScreenDone].forEach(s => s.classList.remove('active'));
+  el.classList.add('active');
+  window.scrollTo(0, 0);
+}
+
+function showRegMsg(el, type, text) {
+  el.className = 'reg-msg show ' + type;
+  el.textContent = text;
+}
+function hideRegMsg(el) { el.className = 'reg-msg'; }
+
+async function bootRegister() {
+  ACTIVE_MODE = 'register';
+  showMode('modeRegister');
+  hideActionBar();
+
+  setupRegisterListeners();
+
+  // Jika SECRET di URL → langsung validasi
+  if (SECRET_URL) {
+    regSecretInput.value = SECRET_URL;
+    await tryAutoValidateSecret(SECRET_URL);
+  } else {
+    showRegScreen(regScreenSecret);
+  }
+}
+
+function setupRegisterListeners() {
+  // Enter di secret
+  regSecretInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') regBtnEnter.click();
+  });
+
+  regBtnEnter.addEventListener('click', async () => {
+    const s = regSecretInput.value.trim();
+    if (!s) { showRegMsg(regSecretMsg, 'err', 'Secret tidak boleh kosong'); return; }
+    await tryAutoValidateSecret(s);
+  });
+
+  regBtnCheckNik.addEventListener('click', () => checkNikAndCapture(regNikInput.value.trim()));
+
+  regBtnBackNik.addEventListener('click', () => {
+    stopRegCamera();
+    regStepCapture.classList.add('reg-hidden');
+    regStepNik.classList.remove('reg-hidden');
+    regProgressWrap.style.display = 'none';
+    regProgressLabel.classList.add('reg-hidden');
+    regDescriptors = [];
+    if (!URL_CFG.userId) regNikInput.value = '';
+    hideRegMsg(regMainMsg);
+  });
+
+  regBtnRetake.addEventListener('click', async () => {
+    regDescriptors = [];
+    regStepSave.classList.add('reg-hidden');
+    regStepCapture.classList.remove('reg-hidden');
+    regProgressWrap.style.display = 'none';
+    regProgressLabel.classList.add('reg-hidden');
+    regProgressBar.style.width = '0%';
+    await startRegCamera();
+    hideRegMsg(regMainMsg);
+  });
+
+  regBtnRecord.addEventListener('click', recordRegSamples);
+  regBtnSave.addEventListener('click', saveRegData);
+  regBtnAnother.addEventListener('click', () => {
+    regCurrentNik = '';
+    regCurrentNama = '';
+    regDescriptors = [];
+    regNikInput.value = '';
+    regBtnSave.disabled = false;
+    regProgressBar.style.width = '0%';
+    regStepSave.classList.add('reg-hidden');
+    regStepCapture.classList.add('reg-hidden');
+    regStepNik.classList.remove('reg-hidden');
+    hideRegMsg(regMainMsg);
+    showRegScreen(regScreenMain);
+  });
+}
+
+async function tryAutoValidateSecret(secret) {
+  regBtnEnter.disabled = true;
+  hideRegMsg(regSecretMsg);
+
+  try {
+    const res = await postJson({ action: 'face_check_secret', secret });
+    if (!res.success) {
+      showRegMsg(regSecretMsg, 'err', res.message || 'Secret salah');
+      if (!SECRET_URL) showRegScreen(regScreenSecret);
+      return;
+    }
+    regAdminSecret = secret;
+    regAdminBadge.textContent = 'Admin aktif';
+    showRegScreen(regScreenMain);
+    await initRegModels();
+
+    // Kalau USER_ID tersedia di URL → skip NIK input, langsung cek
+    if (URL_CFG.userId) {
+      regNikInput.value = URL_CFG.userId;
+      await checkNikAndCapture(URL_CFG.userId);
+    } else {
+      regStepNik.classList.remove('reg-hidden');
+      regStepCapture.classList.add('reg-hidden');
+      regStepSave.classList.add('reg-hidden');
+    }
+  } catch (err) {
+    showRegMsg(regSecretMsg, 'err', err.message || 'Gagal memvalidasi secret');
+  } finally {
+    regBtnEnter.disabled = false;
+  }
+}
+
+async function initRegModels() {
+  if (regModelsReady) return;
+  showRegMsg(regMainMsg, 'warn', 'Memuat model pengenal wajah…');
+  try {
+    await Promise.all([
+      faceapi.nets.tinyFaceDetector.loadFromUri(FACE_MODEL_URL),
+      faceapi.nets.faceLandmark68Net.loadFromUri(FACE_MODEL_URL),
+      faceapi.nets.faceRecognitionNet.loadFromUri(FACE_MODEL_URL)
+    ]);
+    regModelsReady = true;
+    hideRegMsg(regMainMsg);
+  } catch (err) {
+    showRegMsg(regMainMsg, 'err',
+      'Gagal memuat model wajah: ' + (err.message || '') +
+      '. Periksa koneksi internet lalu refresh halaman.');
+  }
+}
+
+async function checkNikAndCapture(nik) {
+  if (!nik) { showRegMsg(regMainMsg, 'err', 'NIK tidak boleh kosong'); return; }
+
+  regBtnCheckNik.disabled = true;
+  hideRegMsg(regMainMsg);
+
+  try {
+    const res = await postJson({ action: 'check_nik', secret: regAdminSecret, nik });
+    if (!res.success) {
+      showRegMsg(regMainMsg, 'err', res.message || 'NIK tidak valid');
+      // Kalau auto-check dari URL gagal, tampilkan form NIK agar bisa dikoreksi
+      regStepNik.classList.remove('reg-hidden');
+      regStepCapture.classList.add('reg-hidden');
+      return;
+    }
+
+    regCurrentNik = res.nik;
+    regCurrentNama = res.nama;
+
+    regInfoPegawai.innerHTML =
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">Nama</span>' +
+        '<span class="reg-info-value">' + escapeHtml(res.nama) + '</span>' +
+      '</div>' +
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">NIK / NIP</span>' +
+        '<span class="reg-info-value">' + escapeHtml(res.nik) + '</span>' +
+      '</div>';
+
+    if (res.hasFace) {
+      regInfoPegawai.innerHTML +=
+        '<div class="reg-info-row">' +
+          '<span class="reg-info-label">Status</span>' +
+          '<span class="reg-info-value" style="color:var(--warning-text)">' +
+            'Sudah terdaftar (update)</span>' +
+        '</div>';
+    }
+
+    regStepNik.classList.add('reg-hidden');
+    regStepCapture.classList.remove('reg-hidden');
+    regStepSave.classList.add('reg-hidden');
+    await startRegCamera();
+  } catch (err) {
+    showRegMsg(regMainMsg, 'err', err.message || 'Gagal cek NIK');
+  } finally {
+    regBtnCheckNik.disabled = false;
+  }
+}
+
+async function startRegCamera() {
+  if (regVideoStream) return;
+  try {
+    regVideoStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+      audio: false
+    });
+    regVideo.srcObject = regVideoStream;
+    regVideoWrap.classList.add('active');
+    regVideoStatus.textContent = 'Posisikan wajah di dalam oval';
+  } catch (err) {
+    regVideoWrap.classList.remove('active');
+    showRegMsg(regMainMsg, 'err',
+      'Tidak bisa mengakses kamera: ' + (err.message || '') +
+      '. Pastikan izin kamera diberikan dan halaman dibuka via HTTPS.');
+  }
+}
+
+function stopRegCamera() {
+  if (!regVideoStream) return;
+  regVideoStream.getTracks().forEach(t => t.stop());
+  regVideoStream = null;
+  regVideo.srcObject = null;
+  regVideoWrap.classList.remove('active');
+}
+
+async function recordRegSamples() {
+  if (regRecording || !regModelsReady) return;
+  regRecording = true;
+  regBtnRecord.disabled = true;
+  regBtnBackNik.disabled = true;
+  regDescriptors = [];
+  regProgressWrap.style.display = 'block';
+  regProgressLabel.classList.remove('reg-hidden');
+  updateRegProgress(0);
+
+  try {
+    for (let i = 0; i < FACE_SAMPLE_COUNT; i++) {
+      regVideoStatus.textContent = 'Mendeteksi wajah… (' + (i + 1) + '/' + FACE_SAMPLE_COUNT + ')';
+      const sample = await captureRegSample();
+      regDescriptors.push(sample);
+      updateRegProgress(i + 1);
+      regVideoStatus.textContent = 'Sampel ' + (i + 1) + '/' + FACE_SAMPLE_COUNT +
+        ' OK — skor ' + sample.score.toFixed(2);
+      await new Promise(r => setTimeout(r, 800));
+    }
+    regVideoStatus.textContent = 'Semua sampel terkumpul ✓';
+    regProgressBar.style.background = 'var(--brand-green)';
+
+    setTimeout(() => {
+      regStepCapture.classList.add('reg-hidden');
+      regStepSave.classList.remove('reg-hidden');
+      stopRegCamera();
+
+      regInfoSave.innerHTML =
+        '<div class="reg-info-row">' +
+          '<span class="reg-info-label">Nama</span>' +
+          '<span class="reg-info-value">' + escapeHtml(regCurrentNama) + '</span>' +
+        '</div>' +
+        '<div class="reg-info-row">' +
+          '<span class="reg-info-label">NIK / NIP</span>' +
+          '<span class="reg-info-value">' + escapeHtml(regCurrentNik) + '</span>' +
+        '</div>' +
+        '<div class="reg-info-row">' +
+          '<span class="reg-info-label">Sampel terkumpul</span>' +
+          '<span class="reg-info-value">' + regDescriptors.length + ' / ' + FACE_SAMPLE_COUNT + '</span>' +
+        '</div>';
+    }, 600);
+  } catch (err) {
+    showRegMsg(regMainMsg, 'err', err.message || 'Gagal merekam wajah');
+    regVideoStatus.textContent = 'Gagal — coba lagi';
+    regProgressWrap.style.display = 'none';
+    regProgressLabel.classList.add('reg-hidden');
+  } finally {
+    regRecording = false;
+    regBtnRecord.disabled = false;
+    regBtnBackNik.disabled = false;
+  }
+}
+
+async function captureRegSample() {
+  for (let attempt = 0; attempt < FACE_MAX_ATTEMPTS; attempt++) {
+    if (attempt > 0) await new Promise(r => setTimeout(r, 350));
+    try {
+      const det = await faceapi
+        .detectSingleFace(regVideo, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (det && det.detection.score >= FACE_MIN_SCORE) {
+        return { descriptor: Array.from(det.descriptor), score: det.detection.score };
+      }
+    } catch (e) {}
+  }
+  throw new Error('Wajah tidak terdeteksi pada sampel ini. Pastikan pencahayaan cukup dan wajah tidak blur.');
+}
+
+function updateRegProgress(n) {
+  const pct = Math.round((n / FACE_SAMPLE_COUNT) * 100);
+  regProgressBar.style.width = pct + '%';
+  regProgressLabel.textContent = n + ' / ' + FACE_SAMPLE_COUNT + ' sampel';
+}
+
+function averageDescriptors(arr) {
+  const dim = arr[0].length;
+  const avg = new Array(dim).fill(0);
+  for (const d of arr) for (let i = 0; i < dim; i++) avg[i] += d[i];
+  for (let i = 0; i < dim; i++) avg[i] /= arr.length;
+  return avg;
+}
+
+async function saveRegData() {
+  if (regDescriptors.length !== FACE_SAMPLE_COUNT) {
+    showRegMsg(regMainMsg, 'err', 'Sampel belum lengkap');
+    return;
+  }
+  regBtnSave.disabled = true;
+  hideRegMsg(regMainMsg);
+
+  try {
+    const avg = averageDescriptors(regDescriptors.map(s => s.descriptor));
+    const res = await postJson({
+      action: 'face_register',
+      secret: regAdminSecret,
+      nik: regCurrentNik,
+      descriptor: avg
+    });
+
+    if (!res.success) {
+      showRegMsg(regMainMsg, 'err', res.message || 'Gagal menyimpan');
+      regBtnSave.disabled = false;
+      return;
+    }
+
+    regDoneText.textContent = res.message || 'Data wajah telah tersimpan.';
+    regDoneInfo.innerHTML =
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">Nama</span>' +
+        '<span class="reg-info-value">' + escapeHtml(res.nama) + '</span>' +
+      '</div>' +
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">NIK / NIP</span>' +
+        '<span class="reg-info-value">' + escapeHtml(res.nik) + '</span>' +
+      '</div>' +
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">Status</span>' +
+        '<span class="reg-info-value">' +
+          (res.action === 'updated' ? 'Diperbarui' : 'Terdaftar baru') +
+        '</span>' +
+      '</div>';
+
+    showRegScreen(regScreenDone);
+  } catch (err) {
+    showRegMsg(regMainMsg, 'err', err.message || 'Gagal menyimpan');
+    regBtnSave.disabled = false;
+  }
+}
+</script>
+</body>
+</html>
