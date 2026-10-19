@@ -304,12 +304,12 @@
 .face-brand-title { font-size: 15px; font-weight: 700; }
 .face-brand-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-/* === KAMERA PERSEGI PANJANG — LEBAR PENUH, TINGGI FLEX === */
+/* === KAMERA MEMANJANG (FLEX) === */
 .face-video-wrap {
   position: relative;
   width: 100%;
-  flex: 1;
-  min-height: 180px;
+  flex: 1; /* Mengisi seluruh sisa ruang vertikal di dalam card */
+  min-height: 250px;
   background: var(--brand-dark);
   border-radius: 16px;
   overflow: hidden;
@@ -327,7 +327,7 @@
   transform: scaleX(-1);
 }
 
-/* === OVAL GUIDE (tetap, skala proporsional) === */
+/* === PANDUAN LINGKARAN BULAT PRESISI === */
 .face-guide {
   position: absolute;
   inset: 0;
@@ -336,15 +336,17 @@
   justify-content: center;
   pointer-events: none;
 }
+
 .face-guide-oval {
-  height: 68%;
-  max-height: 320px;
-  aspect-ratio: 3 / 4;
+  width: 70%; /* Atur ukuran lebarnya */
+  height: auto; 
+  aspect-ratio: 1 / 1; /* KUNCI: Memaksa bentuk selalu persegi/bulat sempurna */
   border: 3px dashed rgba(52, 211, 153, .85);
   border-radius: 50%;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,0.28);
+  box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
   animation: ovalPulse 2s ease-in-out infinite;
   transition: border-color .3s ease;
+  flex-shrink: 0;
 }
 .face-video-wrap.detected .face-guide-oval {
   border-style: solid;
