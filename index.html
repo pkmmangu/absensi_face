@@ -1576,6 +1576,71 @@ async function bootRegister() {
   hideActionBar();
   setupRegisterListeners();
 
+  // =========================================================
+  // FITUR BARU: Bypass menu jika URL lengkap
+  // Contoh: ?face=register?user=123&secret=rahasia123
+  // =========================================================
+  if (URL_CFG.userId && SECRET_URL) {
+    regAdminSecret = SECRET_URL;
+    regCurrentNik = URL_CFG.userId;
+    regCurrentNama = 'Pegawai'; // Placeholder sementara
+    
+    // 1. Langsung tampilkan layar rekam wajah (lewati secret & cek NIK)
+    showRegScreen(regScreenMain);
+    regAdminBadge.textContent = 'Auto Registrasi';
+    regStepNik.classList.add('reg-hidden');
+    regStepSave.classList.add('reg-hidden');
+    regStepCapture.classList.remove('reg-hidden');
+    
+    // 2. Tampilkan info pegawai sementara
+    regInfoPegawai.innerHTML =
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">NIK / NIP</span>' +
+        '<span class="reg-info-value">' + escapeHtml(URL_CFG.userId) + '</span>' +
+      '</div>' +
+      '<div class="reg-info-row">' +
+        '<span class="reg-info-label">Status</span>' +
+        '<span class="reg-info-value">Memuat data…</span>' +
+      '</div>';
+
+    // 3. Jalankan load model & nyalakan kamera secara paralel (bersamaan)
+    await Promise.all([
+      initRegModels(),
+      startRegCamera()
+    ]);
+    
+    // 4. Ambil nama pegawai di background (tidak memblokir UI)
+    postJson({ action: 'check_nik', secret: regAdminSecret, nik: regCurrentNik })
+      .then(res => {
+        if (res.success) {
+          regCurrentNama = res.nama;
+          regInfoPegawai.innerHTML =
+            '<div class="reg-info-row">' +
+              '<span class="reg-info-label">Nama</span>' +
+              '<span class="reg-info-value">' + escapeHtml(res.nama) + '</span>' +
+            '</div>' +
+            '<div class="reg-info-row">' +
+              '<span class="reg-info-label">NIK / NIP</span>' +
+              '<span class="reg-info-value">' + escapeHtml(res.nik) + '</span>' +
+            '</div>';
+          if (res.hasFace) {
+            regInfoPegawai.innerHTML +=
+              '<div class="reg-info-row">' +
+                '<span class="reg-info-label">Status</span>' +
+                '<span class="reg-info-value" style="color:var(--warning-text)">' +
+                  'Sudah terdaftar (update)</span>' +
+              '</div>';
+          }
+        }
+      })
+      .catch(() => {}); // Abaikan jika gagal, data di URL dianggap valid
+
+    return;
+  }
+
+  // =========================================================
+  // ALUR NORMAL (Hanya ?face=register atau tambah secret manual)
+  // =========================================================
   if (SECRET_URL) {
     regSecretInput.value = SECRET_URL;
     await tryAutoValidateSecret(SECRET_URL);
