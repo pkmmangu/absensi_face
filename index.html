@@ -1360,7 +1360,7 @@ function stopFaceCamera() {
   }
 }
 
-/* === FUNGSI MENGGAMBAR KOTAK & NAMA === */
+/* === FUNGSI MENGGAMBAR NAMA === */
 function drawFaceLabel(box, name, videoEl) {
   const canvas = document.getElementById('faceCanvas');
   if (!canvas) return;
@@ -1377,62 +1377,41 @@ function drawFaceLabel(box, name, videoEl) {
   
   ctx.clearRect(0, 0, cw, ch);
   
-  const vw = videoEl.videoWidth || cw;
-  const vh = videoEl.videoHeight || ch;
+  if (!name) return;
+
+  /* 
+   * KOTAK (strokeRect) DIHAPUS TOTAL.
+   * Nama diletakkan secara statis di tengah atas layar kamera 
+   * agar berada di luar lingkaran hijau (di area bayangan gelap).
+   */
   
-  // Kalkulasi matematika untuk object-fit: cover
-  const scaleX = cw / vw;
-  const scaleY = ch / vh;
-  const scale = Math.max(scaleX, scaleY);
+  const fontSize = 16;
+  ctx.font = `bold ${fontSize}px Inter, sans-serif`;
+  const textWidth = ctx.measureText(name).width;
+  const padding = 12;
   
-  const renderW = vw * scale;
-  const renderH = vh * scale;
+  const bgW = textWidth + (padding * 2);
+  const bgH = fontSize + (padding * 1.5);
   
-  const offsetX = (cw - renderW) / 2;
-  const offsetY = (ch - renderH) / 2;
+  // Posisi X di tengah, Posisi Y di atas (16px dari batas atas kamera)
+  const bgX = (cw - bgW) / 2;
+  const bgY = 16; 
   
-  // Posisi wajah asli
-  const drawX = (box.x * scale) + offsetX;
-  const drawY = (box.y * scale) + offsetY;
-  const drawW = box.width * scale;
-  const drawH = box.height * scale;
-  
-  // Mirror posisi X karena kamera menggunakan scaleX(-1)
-  const mirroredX = cw - drawX - drawW;
-  
-  // 1. Gambar Kotak Hijau
-  ctx.strokeStyle = '#34d399';
-  ctx.lineWidth = 3;
-  ctx.strokeRect(mirroredX, drawY, drawW, drawH);
-  
-  // 2. Gambar Label Nama
-  if (name) {
-    const fontSize = 16;
-    ctx.font = `bold ${fontSize}px Inter, sans-serif`;
-    const textWidth = ctx.measureText(name).width;
-    const padding = 8;
-    
-    const bgX = mirroredX + (drawW / 2) - (textWidth / 2) - padding;
-    const bgY = Math.max(10, drawY - fontSize - (padding * 2));
-    const bgW = textWidth + (padding * 2);
-    const bgH = fontSize + (padding * 1.5);
-    
-    // Background Label
-    ctx.fillStyle = 'rgba(52, 211, 153, 0.95)';
-    ctx.beginPath();
-    if (ctx.roundRect) {
-      ctx.roundRect(bgX, bgY, bgW, bgH, 8);
-    } else {
-      ctx.rect(bgX, bgY, bgW, bgH);
-    }
-    ctx.fill();
-    
-    // Text Nama
-    ctx.fillStyle = '#052e1f';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(name, mirroredX + (drawW / 2), bgY + (bgH / 2) + 1);
+  // Background Label Nama
+  ctx.fillStyle = 'rgba(52, 211, 153, 0.95)'; // Warna hijau brand
+  ctx.beginPath();
+  if (ctx.roundRect) {
+    ctx.roundRect(bgX, bgY, bgW, bgH, 12);
+  } else {
+    ctx.rect(bgX, bgY, bgW, bgH);
   }
+  ctx.fill();
+  
+  // Text Nama
+  ctx.fillStyle = '#052e1f'; // Teks warna gelap
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(name, cw / 2, bgY + (bgH / 2) + 1);
 }
 
 /* Loop deteksi + verifikasi. Return hasil verify atau error. */
