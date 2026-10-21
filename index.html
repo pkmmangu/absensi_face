@@ -207,6 +207,22 @@
     .result-title { font-size: 17px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
     .result-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 
+    /* TAMBAHKAN CSS BADGE INI */
+    .result-badge {
+      background: var(--error-bg);
+      color: var(--error-text);
+      padding: 5px 12px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      flex-shrink: 0;
+      align-self: center;
+      white-space: nowrap;
+      box-shadow: 0 2px 8px rgba(153, 27, 27, 0.15);
+    }
+
     .result-grid { display: flex; flex-direction: column; gap: 2px; }
     .result-row {
       display: flex; justify-content: space-between; align-items: center;
@@ -779,6 +795,7 @@
         <div class="result-title" id="resultTitle">Memproses…</div>
         <div class="result-subtitle" id="resultSubtitle"></div>
       </div>
+      <div class="result-badge hidden" id="resultBadge">Tidak Apel</div>
     </div>
     <div class="result-grid" id="resultGrid"></div>
   </div>
@@ -945,6 +962,14 @@ function showResult(type, title, subtitle, rows, message) {
   resultTitle.textContent = title || '';
   resultSubtitle.textContent = subtitle || '';
   resultGrid.innerHTML = '';
+
+  const badgeEl = document.getElementById('resultBadge');
+  if (badgeText) {
+    badgeEl.textContent = badgeText;
+    badgeEl.classList.remove('hidden');
+  } else {
+    badgeEl.classList.add('hidden');
+  }
 
   if (message) {
     const msgEl = document.createElement('div');
@@ -1245,13 +1270,19 @@ function tampilkanSukses(res) {
   if (/terlambat/i.test(ket)) ketCls = 'badge-late';
   const ketBadge = ket ? { value: ket, cls: ketCls } : { value: 'Tepat Waktu', cls: 'badge-ok' };
 
+  // Cek apakah server mengirim sinyal tidakApel
+  const badgeText = res.tidakApel ? 'Tidak Apel' : null;
+
   showResult('ok', jenisLabel + ' Berhasil', 'Data absensi tercatat di sistem',
     [
       { label: 'Nama',       value: res.nama || '-',    icon: 'fa-user' },
       { label: 'Tanggal',    value: res.tanggal || '-', icon: 'fa-calendar-day' },
       { label: 'Jam Absen',  value: res.absen || '-',   icon: 'fa-clock' },
       { label: 'Keterangan', ...ketBadge,               icon: 'fa-circle-info' }
-    ]);
+    ],
+    null,     // message (kosongkan)
+    badgeText // <--- Kirim badgeText ke sini
+  );
   kirimKeOpener(res);
 }
 
