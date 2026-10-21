@@ -207,7 +207,6 @@
     .result-title { font-size: 17px; font-weight: 700; color: var(--text-primary); line-height: 1.3; }
     .result-subtitle { font-size: 13px; color: var(--text-muted); margin-top: 2px; }
 
-    /* TAMBAHKAN CSS BADGE INI */
     .result-badge {
       background: var(--error-bg);
       color: var(--error-text);
@@ -262,159 +261,156 @@
       padding: 6px 2px;
     }
 
-/* =========================================================
-   FACE SCAN CARD UI — FIT VIEWPORT, CAMERA RECTANGLE
-========================================================= */
-#modeFace {
-  position: fixed;
-  inset: 0;
-  background: linear-gradient(160deg, var(--brand) 0%, var(--brand-dark) 100%);
-  padding: 12px;
-  display: flex;
-  align-items: stretch;
-  justify-content: center;
-  overflow: hidden;
-}
-#modeFace.hidden { display: none; }
+    /* =========================================================
+       FACE SCAN CARD UI
+    ========================================================= */
+    #modeFace {
+      position: fixed;
+      inset: 0;
+      background: linear-gradient(160deg, var(--brand) 0%, var(--brand-dark) 100%);
+      padding: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+    #modeFace.hidden { display: none; }
 
-.face-app {
-  width: 100%;
-  max-width: 440px;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
+    .face-app {
+      width: 100%;
+      max-width: 400px;
+      max-height: 100%;
+      display: flex;
+      flex-direction: column;
+    }
 
-.face-card {
-  background: #fff;
-  border-radius: 20px;
-  padding: 14px;
-  box-shadow: 0 20px 40px rgba(0,0,0,0.18);
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  min-height: 0;
-  gap: 12px;
-}
+    .face-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 16px;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.18);
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
 
-.face-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--border-secondary);
-  flex-shrink: 0;
-}
-.face-brand-logo {
-  width: 40px;
-  height: 40px;
-  border-radius: 10px;
-  background: var(--brand);
-  color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  flex-shrink: 0;
-}
-.face-brand-title { font-size: 15px; font-weight: 700; }
-.face-brand-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .face-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid var(--border-secondary);
+      flex-shrink: 0;
+    }
+    .face-brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 10px;
+      background: var(--brand);
+      color: #fff;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+    .face-brand-title { font-size: 15px; font-weight: 700; }
+    .face-brand-sub { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
 
-/* === KAMERA MEMANJANG (FLEX) === */
-.face-video-wrap {
-  position: relative;
-  width: 100%;
-  flex: 1; /* Mengisi seluruh sisa ruang vertikal di dalam card */
-  min-height: 250px;
-  background: var(--brand-dark);
-  border-radius: 16px;
-  overflow: hidden;
-  transition: box-shadow .4s ease;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
-}
-.face-video-wrap.detected {
-  box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6),
-              0 0 24px rgba(52, 211, 153, 0.4);
-}
-.face-video-wrap video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform: scaleX(-1);
-}
+    .face-video-wrap {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1 / 1;
+      max-height: 55vh;
+      margin: 0 auto;
+      background: var(--brand-dark);
+      border-radius: 20px;
+      overflow: hidden;
+      transition: box-shadow .4s ease;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+      flex-shrink: 0;
+    }
+    .face-video-wrap.detected {
+      box-shadow: 0 0 0 3px rgba(52, 211, 153, 0.6),
+                  0 0 24px rgba(52, 211, 153, 0.4);
+    }
+    .face-video-wrap video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+    }
 
-/* === PANDUAN LINGKARAN BULAT PRESISI === */
-.face-guide {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-}
+    .face-guide {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+    }
+    .face-guide-oval {
+      width: 70%;
+      height: auto;
+      aspect-ratio: 1 / 1;
+      border: 3px dashed rgba(52, 211, 153, .85);
+      border-radius: 50%;
+      box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
+      animation: ovalPulse 2s ease-in-out infinite;
+      transition: border-color .3s ease;
+      flex-shrink: 0;
+    }
+    .face-video-wrap.detected .face-guide-oval {
+      border-style: solid;
+      border-color: var(--brand-green);
+      animation: none;
+    }
+    @keyframes ovalPulse {
+      0%,100% { border-color: rgba(52,211,153,.75); }
+      50%     { border-color: rgba(52,211,153,1);   }
+    }
 
-.face-guide-oval {
-  width: 70%; /* Atur ukuran lebarnya */
-  height: auto; 
-  aspect-ratio: 1 / 1; /* KUNCI: Memaksa bentuk selalu persegi/bulat sempurna */
-  border: 3px dashed rgba(52, 211, 153, .85);
-  border-radius: 50%;
-  box-shadow: 0 0 0 9999px rgba(0,0,0,0.3);
-  animation: ovalPulse 2s ease-in-out infinite;
-  transition: border-color .3s ease;
-  flex-shrink: 0;
-}
-.face-video-wrap.detected .face-guide-oval {
-  border-style: solid;
-  border-color: var(--brand-green);
-  animation: none;
-}
-@keyframes ovalPulse {
-  0%,100% { border-color: rgba(52,211,153,.75); }
-  50%     { border-color: rgba(52,211,153,1);   }
-}
+    .face-status-pill {
+      position: absolute;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.72);
+      color: #fff;
+      padding: 8px 16px;
+      border-radius: 24px;
+      font-size: 12px;
+      font-weight: 600;
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      white-space: nowrap;
+      max-width: calc(100% - 20px);
+      overflow: hidden;
+      text-overflow: ellipsis;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .face-status-pill i { font-size: 11px; }
 
-.face-status-pill {
-  position: absolute;
-  bottom: 10px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: rgba(0,0,0,0.72);
-  color: #fff;
-  padding: 8px 16px;
-  border-radius: 24px;
-  font-size: 12px;
-  font-weight: 600;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  white-space: nowrap;
-  max-width: calc(100% - 20px);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.face-status-pill i { font-size: 11px; }
-
-.face-hint {
-  background: #f4f8fc;
-  border-radius: 10px;
-  padding: 10px 12px;
-  font-size: 12px;
-  color: var(--text-muted);
-  line-height: 1.4;
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  flex-shrink: 0;
-}
-.face-hint i {
-  color: var(--brand-blue);
-  font-size: 13px;
-  margin-top: 1px;
-  flex-shrink: 0;
-}
+    .face-hint {
+      background: #f4f8fc;
+      border-radius: 10px;
+      padding: 10px 12px;
+      font-size: 12px;
+      color: var(--text-muted);
+      line-height: 1.4;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+      flex-shrink: 0;
+    }
+    .face-hint i {
+      color: var(--brand-blue);
+      font-size: 13px;
+      margin-top: 1px;
+      flex-shrink: 0;
+    }
 
     /* =========================================================
        REGISTER MODE
@@ -776,9 +772,14 @@
      ACTION BAR
 ========================================================= -->
 <div class="action-bar hidden" id="globalActionBar">
+  <button class="action-btn btn-import hidden" id="switchBarcodeBtn" type="button" style="background: rgba(59, 130, 246, 0.9); border-color: #3b82f6; color: #fff;">
+    <i class="fas fa-barcode"></i><span>Scan Barcode</span>
+  </button>
+
   <button class="action-btn btn-import hidden" id="importBtn" type="button">
     <i class="fas fa-image"></i><span>Import</span>
   </button>
+  
   <button class="action-btn" id="actionBtn" type="button">
     <i class="fas fa-xmark"></i><span id="actionBtnLabel">Batal</span>
   </button>
@@ -820,7 +821,7 @@ const FACE_MAX_ATTEMPTS = 8;
 const FACE_DETECT_TIMEOUT = 15000; // 15 detik max mencari wajah
 
 /* =========================================================
-   URL PARSING
+   URL PARSING (Mendukung ?face=nik)
 ========================================================= */
 (function parseUrl() {
   const params = new URLSearchParams(window.location.search);
@@ -843,14 +844,24 @@ const FACE_DETECT_TIMEOUT = 15000; // 15 detik max mencari wajah
   }
 
   faceRaw = faceRaw.toLowerCase().trim();
+  
+  const isRegister = faceRaw === 'register';
+  const isFaceScan = faceRaw !== '' && !isRegister && faceRaw !== '0' && faceRaw !== 'false';
+  const isBarcode  = faceRaw === '' && userVal.trim() !== '';
+
+  // Ambil NIK dari ?face=123456
+  if (isFaceScan && faceRaw !== '1' && !userVal) {
+    userVal = faceRaw;
+  }
+
   window.__URL__ = {
     faceRaw,
     userId: userVal.trim(),
     secret: secVal.trim(),
     import: impVal.trim(),
-    isRegister: faceRaw === 'register',
-    isFaceScan: faceRaw !== '' && faceRaw !== 'register' && faceRaw !== '0' && faceRaw !== 'false',
-    isBarcode:  faceRaw === '' && userVal.trim() !== '',
+    isRegister,
+    isFaceScan,
+    isBarcode
   };
 })();
 
@@ -864,6 +875,7 @@ const IMPORT_ENABLED = URL_CFG.isBarcode && URL_CFG.import.toLowerCase() === 'en
 ========================================================= */
 let ACTIVE_MODE = '';
 let pendingRetry = null;
+let faceFailCount = 0; // State untuk melacak kegagalan wajah
 
 /* =========================================================
    SHARED HELPERS
@@ -907,11 +919,13 @@ const actionBar      = document.getElementById('globalActionBar');
 const actionBtn      = document.getElementById('actionBtn');
 const actionBtnLabel = document.getElementById('actionBtnLabel');
 const importBtn      = document.getElementById('importBtn');
+const switchBarcodeBtn = document.getElementById('switchBarcodeBtn');
 const resultOverlay  = document.getElementById('resultOverlay');
 const resultIcon     = document.getElementById('resultIcon');
 const resultTitle    = document.getElementById('resultTitle');
 const resultSubtitle = document.getElementById('resultSubtitle');
 const resultGrid     = document.getElementById('resultGrid');
+const resultBadge    = document.getElementById('resultBadge');
 
 function showActionBar() { actionBar.classList.remove('hidden'); }
 function hideActionBar() { actionBar.classList.add('hidden'); }
@@ -929,6 +943,10 @@ actionBtn.addEventListener('click', () => {
   }
   window.close();
   setTimeout(fallbackCloseScreen, 400);
+});
+
+switchBarcodeBtn.addEventListener('click', () => {
+  switchToBarcodeMode();
 });
 
 function setStatus(text, active) {
@@ -949,9 +967,10 @@ function showLoading(text) {
   resultOverlay.classList.add('active');
   hideActionBar();
   hideImportBtn();
+  resultBadge.classList.add('hidden');
 }
 
-function showResult(type, title, subtitle, rows, message) {
+function showResult(type, title, subtitle, rows, message, badgeText = null) {
   pendingRetry = null;
   const iconMap = {
     ok: 'fa-circle-check', err: 'fa-circle-xmark',
@@ -963,12 +982,11 @@ function showResult(type, title, subtitle, rows, message) {
   resultSubtitle.textContent = subtitle || '';
   resultGrid.innerHTML = '';
 
-  const badgeEl = document.getElementById('resultBadge');
   if (badgeText) {
-    badgeEl.textContent = badgeText;
-    badgeEl.classList.remove('hidden');
+    resultBadge.textContent = badgeText;
+    resultBadge.classList.remove('hidden');
   } else {
-    badgeEl.classList.add('hidden');
+    resultBadge.classList.add('hidden');
   }
 
   if (message) {
@@ -1270,7 +1288,6 @@ function tampilkanSukses(res) {
   if (/terlambat/i.test(ket)) ketCls = 'badge-late';
   const ketBadge = ket ? { value: ket, cls: ketCls } : { value: 'Tepat Waktu', cls: 'badge-ok' };
 
-  // Cek apakah server mengirim sinyal tidakApel
   const badgeText = res.tidakApel ? 'Tidak Apel' : null;
 
   showResult('ok', jenisLabel + ' Berhasil', 'Data absensi tercatat di sistem',
@@ -1280,8 +1297,8 @@ function tampilkanSukses(res) {
       { label: 'Jam Absen',  value: res.absen || '-',   icon: 'fa-clock' },
       { label: 'Keterangan', ...ketBadge,               icon: 'fa-circle-info' }
     ],
-    null,     // message (kosongkan)
-    badgeText // <--- Kirim badgeText ke sini
+    null,
+    badgeText
   );
   kirimKeOpener(res);
 }
@@ -1346,6 +1363,8 @@ let faceStream = null;
 
 function bootFaceScan() {
   ACTIVE_MODE = 'face';
+  faceFailCount = 0; // Reset counter
+  switchBarcodeBtn.classList.add('hidden');
   showMode('modeFace');
   hideActionBar();
   hideImportBtn();
@@ -1383,7 +1402,6 @@ function stopFaceCamera() {
   const video = document.getElementById('faceVideo');
   if (video) video.srcObject = null;
   
-  // Tambahkan ini untuk menghapus kotak/nama
   const canvas = document.getElementById('faceCanvas');
   if (canvas) {
     const ctx = canvas.getContext('2d');
@@ -1391,7 +1409,6 @@ function stopFaceCamera() {
   }
 }
 
-/* === FUNGSI MENGGAMBAR NAMA === */
 function drawFaceLabel(box, name, videoEl) {
   const canvas = document.getElementById('faceCanvas');
   if (!canvas) return;
@@ -1400,7 +1417,6 @@ function drawFaceLabel(box, name, videoEl) {
   const cw = videoEl.clientWidth;
   const ch = videoEl.clientHeight;
   
-  // Handle High DPI (Retina Display)
   const dpr = window.devicePixelRatio || 1;
   canvas.width = cw * dpr;
   canvas.height = ch * dpr;
@@ -1410,12 +1426,6 @@ function drawFaceLabel(box, name, videoEl) {
   
   if (!name) return;
 
-  /* 
-   * KOTAK (strokeRect) DIHAPUS TOTAL.
-   * Nama diletakkan secara statis di tengah atas layar kamera 
-   * agar berada di luar lingkaran hijau (di area bayangan gelap).
-   */
-  
   const fontSize = 16;
   ctx.font = `bold ${fontSize}px Inter, sans-serif`;
   const textWidth = ctx.measureText(name).width;
@@ -1424,12 +1434,10 @@ function drawFaceLabel(box, name, videoEl) {
   const bgW = textWidth + (padding * 2);
   const bgH = fontSize + (padding * 1.5);
   
-  // Posisi X di tengah, Posisi Y di atas (16px dari batas atas kamera)
   const bgX = (cw - bgW) / 2;
   const bgY = 16; 
   
-  // Background Label Nama
-  ctx.fillStyle = 'rgba(52, 211, 153, 0.95)'; // Warna hijau brand
+  ctx.fillStyle = 'rgba(52, 211, 153, 0.95)'; 
   ctx.beginPath();
   if (ctx.roundRect) {
     ctx.roundRect(bgX, bgY, bgW, bgH, 12);
@@ -1438,14 +1446,12 @@ function drawFaceLabel(box, name, videoEl) {
   }
   ctx.fill();
   
-  // Text Nama
-  ctx.fillStyle = '#052e1f'; // Teks warna gelap
+  ctx.fillStyle = '#052e1f'; 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.fillText(name, cw / 2, bgY + (bgH / 2) + 1);
 }
 
-/* Loop deteksi + verifikasi. Return hasil verify atau error. */
 async function detectAndVerifyFace(videoEl) {
   const startTime = Date.now();
   let detectedOnce = false;
@@ -1463,14 +1469,12 @@ async function detectAndVerifyFace(videoEl) {
     } catch (e) { /* retry */ }
 
     if (!det || det.detection.score < 0.5) {
-      // Belum terdeteksi → status default
       if (!detectedOnce) {
         setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
       }
       continue;
     }
 
-    // Wajah terdeteksi
     detectedOnce = true;
     setFaceStatus('fa-face-smile', 'Wajah terdeteksi…', true);
     await new Promise(r => setTimeout(r, 400));
@@ -1479,17 +1483,12 @@ async function detectAndVerifyFace(videoEl) {
     const descriptor = Array.from(det.descriptor);
 
     try {
-      const verifyRes = await postJson({ action: 'face_verify', descriptor });
+      const verifyRes = await postJson({ action: 'face_verify', descriptor, nik: USER_ID });
 
       if (verifyRes.success) {
-        // Gambar kotak dan nama di atas kepala
         drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
-        
         setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + verifyRes.nama, true);
-        
-        // Tahan 1.5 detik agar user melihat namanya
         await new Promise(r => setTimeout(r, 1500));
-        
         return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
       }
       return {
@@ -1514,15 +1513,49 @@ async function detectAndVerifyFace(videoEl) {
   };
 }
 
-/* Tampilkan modal hasil + retry flow */
 function showFaceErrorResult(title, rows, message) {
+  faceFailCount++;
+  
   showResult('err', title, '', rows || [], message || '');
+  
   pendingRetry = () => {
     hideOverlay();
     hideActionBar();
     runFaceFlow();
   };
   setActionLabel('Coba Lagi');
+  
+  if (faceFailCount >= 2 && USER_ID) {
+    switchBarcodeBtn.classList.remove('hidden');
+    showActionBar();
+  }
+}
+
+function switchToBarcodeMode() {
+  stopFaceCamera();
+  faceFlowRunning = false;
+  ACTIVE_MODE = 'barcode';
+  
+  showMode('modeBarcode');
+  hideOverlay();
+  hideActionBar();
+  switchBarcodeBtn.classList.add('hidden');
+  
+  setStatus('Memeriksa lokasi…', true);
+  showLoading('Memeriksa lokasi Anda…');
+  
+  cekDalamRadius().then(cek => {
+    if (!cek.ok) {
+      setStatus('Di luar area', false);
+      showResult('err', 'Di Luar Area',
+        'Absensi hanya bisa dilakukan di Puskesmas Manguharjo Kota Madiun',
+        [], cek.message || '');
+      return;
+    }
+    hideOverlay();
+    setStatus('Memindai…', true);
+    startBarcodeScan();
+  });
 }
 
 async function runFaceFlow() {
@@ -1530,7 +1563,6 @@ async function runFaceFlow() {
   faceFlowRunning = true;
 
   try {
-    /* 1. Load model */
     setFaceStatus('fa-spinner fa-spin', 'Memuat model wajah…', false);
     try {
       await loadFaceModels();
@@ -1540,7 +1572,6 @@ async function runFaceFlow() {
       return;
     }
 
-    /* 2. Start camera */
     setFaceStatus('fa-spinner fa-spin', 'Menyiapkan kamera…', false);
     try {
       faceStream = await navigator.mediaDevices.getUserMedia({
@@ -1562,7 +1593,6 @@ async function runFaceFlow() {
     });
     await video.play();
 
-    /* 3. Detect + verify */
     setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
     const verifyResult = await detectAndVerifyFace(video);
 
@@ -1572,7 +1602,6 @@ async function runFaceFlow() {
       return;
     }
 
-    /* 4. Location check */
     setFaceStatus('fa-location-dot', 'Memeriksa lokasi…', true);
     const cek = await cekDalamRadius();
     if (!cek.ok) {
@@ -1587,7 +1616,6 @@ async function runFaceFlow() {
       return;
     }
 
-    /* 5. Save */
     setFaceStatus('fa-spinner fa-spin', 'Menyimpan absensi…', true);
     let saveRes;
     try {
@@ -1598,9 +1626,11 @@ async function runFaceFlow() {
       return;
     }
 
+    // === JEDA 1 DETIK AGAR KAMERA TIDAK BLANK ===
+    await new Promise(r => setTimeout(r, 1000));
+
     stopFaceCamera();
 
-    /* 6. Tampilkan modal final */
     if (saveRes.duplicate) {
       showResult('warn', 'Sudah Absen',
         saveRes.message || 'Data sudah tercatat',
@@ -1679,23 +1709,17 @@ async function bootRegister() {
   hideActionBar();
   setupRegisterListeners();
 
-  // =========================================================
-  // FITUR BARU: Bypass menu jika URL lengkap
-  // Contoh: ?face=register?user=123&secret=rahasia123
-  // =========================================================
   if (URL_CFG.userId && SECRET_URL) {
     regAdminSecret = SECRET_URL;
     regCurrentNik = URL_CFG.userId;
-    regCurrentNama = 'Pegawai'; // Placeholder sementara
+    regCurrentNama = 'Pegawai'; 
     
-    // 1. Langsung tampilkan layar rekam wajah (lewati secret & cek NIK)
     showRegScreen(regScreenMain);
     regAdminBadge.textContent = 'Auto Registrasi';
     regStepNik.classList.add('reg-hidden');
     regStepSave.classList.add('reg-hidden');
     regStepCapture.classList.remove('reg-hidden');
     
-    // 2. Tampilkan info pegawai sementara
     regInfoPegawai.innerHTML =
       '<div class="reg-info-row">' +
         '<span class="reg-info-label">NIK / NIP</span>' +
@@ -1706,13 +1730,11 @@ async function bootRegister() {
         '<span class="reg-info-value">Memuat data…</span>' +
       '</div>';
 
-    // 3. Jalankan load model & nyalakan kamera secara paralel (bersamaan)
     await Promise.all([
       initRegModels(),
       startRegCamera()
     ]);
     
-    // 4. Ambil nama pegawai di background (tidak memblokir UI)
     postJson({ action: 'check_nik', secret: regAdminSecret, nik: regCurrentNik })
       .then(res => {
         if (res.success) {
@@ -1736,14 +1758,11 @@ async function bootRegister() {
           }
         }
       })
-      .catch(() => {}); // Abaikan jika gagal, data di URL dianggap valid
+      .catch(() => {});
 
     return;
   }
 
-  // =========================================================
-  // ALUR NORMAL (Hanya ?face=register atau tambah secret manual)
-  // =========================================================
   if (SECRET_URL) {
     regSecretInput.value = SECRET_URL;
     await tryAutoValidateSecret(SECRET_URL);
