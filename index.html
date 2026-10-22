@@ -1084,6 +1084,9 @@
         <span>Posisikan wajah di dalam oval dengan pencahayaan cukup.
               Verifikasi berjalan otomatis saat wajah terdeteksi.</span>
       </div>
+      <button class="reg-btn reg-btn-outline" id="faceCloseBtn" type="button" style="padding: 12px; font-size: 14px;">
+        <i class="fas fa-xmark"></i> Tutup
+      </button>
     </div>
   </div>
 </div>
@@ -1158,6 +1161,9 @@
             <button class="reg-btn reg-btn-outline" id="regBtnBackNik" type="button">
               <i class="fas fa-arrow-left"></i> Kembali
             </button>
+            <button class="reg-btn reg-btn-outline reg-hidden" id="regBtnBatalAuto" type="button">
+              <i class="fas fa-xmark"></i> Batal
+            </button>
           </div>
         </div>
 
@@ -1185,6 +1191,9 @@
         <div class="reg-info-block" id="regDoneInfo"></div>
         <button class="reg-btn reg-btn-primary" id="regBtnAnother" type="button">
           <i class="fas fa-user-plus"></i> Registrasi Pegawai Lain
+        </button>
+        <button class="reg-btn reg-btn-primary reg-hidden" id="regBtnCloseAuto" type="button">
+          <i class="fas fa-check"></i> Tutup
         </button>
       </div>
     </section>
@@ -1385,6 +1394,15 @@ actionBtn.addEventListener('click', () => {
 switchBarcodeBtn.addEventListener('click', () => {
   switchToBarcodeMode();
 });
+
+const faceCloseBtn = document.getElementById('faceCloseBtn');
+if (faceCloseBtn) {
+  faceCloseBtn.addEventListener('click', () => {
+    stopFaceCamera(); // Matikan kamera dulu agar LED langsung mati
+    window.close();
+    setTimeout(fallbackCloseScreen, 400);
+  });
+}
 
 function setStatus(text, active) {
   const badge = document.getElementById('statusBadge');
@@ -2156,6 +2174,10 @@ async function bootRegister() {
     regStepNik.classList.add('reg-hidden');
     regStepSave.classList.add('reg-hidden');
     regStepCapture.classList.remove('reg-hidden');
+    document.getElementById('regBtnBackNik').classList.add('reg-hidden');
+    document.getElementById('regBtnBatalAuto').classList.remove('reg-hidden');
+    document.getElementById('regBtnAnother').classList.add('reg-hidden');
+    document.getElementById('regBtnCloseAuto').classList.remove('reg-hidden');
     
     regInfoPegawai.innerHTML =
       '<div class="reg-info-row">' +
@@ -2251,6 +2273,22 @@ function setupRegisterListeners() {
     hideRegMsg(regMainMsg);
     showRegScreen(regScreenMain);
   });
+  const regBtnBatalAuto = document.getElementById('regBtnBatalAuto');
+  if (regBtnBatalAuto) {
+    regBtnBatalAuto.addEventListener('click', () => {
+      stopRegCamera();
+      window.close();
+      setTimeout(fallbackCloseScreen, 400);
+    });
+  }
+
+  const regBtnCloseAuto = document.getElementById('regBtnCloseAuto');
+  if (regBtnCloseAuto) {
+    regBtnCloseAuto.addEventListener('click', () => {
+      window.close();
+      setTimeout(fallbackCloseScreen, 400);
+    });
+  }
 }
 
 async function tryAutoValidateSecret(secret) {
