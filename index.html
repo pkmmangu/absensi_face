@@ -1227,7 +1227,11 @@
   </button>
   
   <button class="action-btn" id="actionBtn" type="button">
-    <i class="fas fa-xmark"></i><span id="actionBtnLabel">Batal</span>
+    <i class="fas fa-xmark" id="actionBtnIcon"></i><span id="actionBtnLabel">Batal</span>
+  </button>
+
+  <button class="action-btn hidden" id="btnCloseError" type="button" style="background: rgba(0,0,0,0.5); border-color: rgba(255,255,255,0.2);">
+    <i class="fas fa-xmark"></i><span>Tutup</span>
   </button>
 </div>
 
@@ -1375,9 +1379,21 @@ const resultBadge    = document.getElementById('resultBadge');
 
 function showActionBar() { actionBar.classList.remove('hidden'); }
 function hideActionBar() { actionBar.classList.add('hidden'); }
-function setActionLabel(t) { actionBtnLabel.textContent = t; }
+function setActionLabel(t, iconClass = 'fa-xmark') {
+  actionBtnLabel.textContent = t;
+  const iconEl = document.getElementById('actionBtnIcon');
+  if (iconEl) iconEl.className = 'fas ' + iconClass;
+}
 function showImportBtn() { if (IMPORT_ENABLED) importBtn.classList.remove('hidden'); }
 function hideImportBtn() { importBtn.classList.add('hidden'); }
+const btnCloseError = document.getElementById('btnCloseError');
+if (btnCloseError) {
+  btnCloseError.addEventListener('click', () => {
+    stopFaceCamera(); // Matikan kamera jika ada
+    window.close();
+    setTimeout(fallbackCloseScreen, 400);
+  });
+}
 
 actionBtn.addEventListener('click', () => {
   if (pendingRetry) {
@@ -1468,14 +1484,20 @@ function showResult(type, title, subtitle, rows, message, badgeText = null) {
   }
 
   resultOverlay.classList.add('active');
-  setActionLabel('Tutup');
+  setActionLabel('Tutup', 'fa-xmark');
   showActionBar();
   hideImportBtn();
+  
+  // Sembunyikan tombol Tutup ganda
+  const btnCloseError = document.getElementById('btnCloseError');
+  if (btnCloseError) btnCloseError.classList.add('hidden');
 }
 
 function hideOverlay() {
   resultOverlay.classList.remove('active');
-  setActionLabel('Batal');
+  setActionLabel('Batal', 'fa-xmark');
+  const btnCloseError = document.getElementById('btnCloseError');
+  if (btnCloseError) btnCloseError.classList.add('hidden');
   if (ACTIVE_MODE === 'barcode') {
     showActionBar();
     if (IMPORT_ENABLED) showImportBtn();
@@ -1980,6 +2002,9 @@ function showFaceErrorResult(title, rows, message) {
   };
   setActionLabel('Coba Lagi');
   
+  const btnCloseError = document.getElementById('btnCloseError');
+  if (btnCloseError) btnCloseError.classList.remove('hidden');
+
   if (faceFailCount >= 2 && USER_ID) {
     switchBarcodeBtn.classList.remove('hidden');
     showActionBar();
