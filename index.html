@@ -1033,6 +1033,106 @@
       color: var(--text-muted);
       line-height: 1.6;
     }
+
+    /* =========================================================
+       RESPONSIVE DESKTOP / TABLET (BARCODE & FACE SCAN)
+    ========================================================= */
+    @media (min-width: 768px) {
+      /* --- 1. MODE FACE SCAN (2 Kolom) --- */
+      #modeFace {
+        align-items: center; 
+        padding: 24px;
+      }
+      
+      .face-app {
+        max-width: 850px;
+        height: auto;
+        max-height: 90vh;
+      }
+      
+      .face-card {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: auto 1fr auto;
+        grid-template-areas:
+          "brand brand"
+          "video hint"
+          "video buttons";
+        gap: 16px 24px;
+        padding: 24px;
+      }
+      
+      .face-brand { 
+        grid-area: brand; 
+        margin-bottom: 0; 
+      }
+      
+      .face-video-wrap {
+        grid-area: video;
+        aspect-ratio: 1 / 1;
+        height: 100%;
+        max-height: 500px;
+        min-height: unset;
+      }
+      
+      .face-hint {
+        grid-area: hint;
+        margin-top: 0;
+        align-self: start;
+        font-size: 13px;
+        padding: 14px 16px;
+      }
+      
+      .reg-btn-row {
+        grid-area: buttons;
+        margin-top: 0;
+        align-self: end;
+      }
+      
+      .reg-btn-row .reg-btn {
+        padding: 16px 20px;
+        font-size: 15px;
+      }
+      
+      /* --- 2. MODE BARCODE SCANNER (Card di Tengah) --- */
+      #modeBarcode {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: linear-gradient(160deg, var(--brand) 0%, var(--brand-dark) 100%) !important;
+      }
+      
+      .scanner-stage {
+        position: relative;
+        inset: unset;
+        width: 100%;
+        max-width: 600px;
+        height: 65vh;
+        border-radius: 24px;
+        box-shadow: 0 20px 50px rgba(0,0,0,0.4);
+        border: 8px solid #fff; /* Bingkai putih ala tablet */
+        overflow: hidden;
+      }
+      
+      #reader, #reader video {
+        border-radius: 16px !important;
+      }
+      
+      .bottom-overlay {
+        display: none; /* Hilangkan gradasi gelap di desktop */
+      }
+      
+      .scanner-badge {
+        top: 20px;
+        left: 20px;
+        background: rgba(0,0,0,0.65);
+      }
+      
+      /* Action Bar di Desktop */
+      .action-bar {
+        bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+      }
+    }
   </style>
 </head>
 <body>
