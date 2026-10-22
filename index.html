@@ -1946,6 +1946,9 @@ async function detectAndVerifyFace(videoEl) {
   let detectedOnce = false;
 
   while (Date.now() - startTime < FACE_DETECT_TIMEOUT) {
+    // === TAMBAHKAN PENGECEKAN INI ===
+    if (ACTIVE_MODE !== 'face') return { cancelled: true }; 
+    
     await new Promise(r => setTimeout(r, 400));
 
     let det = null;
@@ -1973,6 +1976,8 @@ async function detectAndVerifyFace(videoEl) {
 
     try {
       const verifyRes = await postJson({ action: 'face_verify', descriptor, nik: USER_ID });
+
+      if (ACTIVE_MODE !== 'face') return { cancelled: true };
 
       if (verifyRes.success) {
         drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
@@ -2017,9 +2022,9 @@ function showFaceErrorResult(title, rows, message) {
 }
 
 function switchToBarcodeMode() {
+  ACTIVE_MODE = 'barcode';
   stopFaceCamera();
   faceFlowRunning = false;
-  ACTIVE_MODE = 'barcode';
   
   showMode('modeBarcode');
   hideOverlay();
@@ -2084,6 +2089,8 @@ async function runFaceFlow() {
     setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
     const verifyResult = await detectAndVerifyFace(video);
 
+    if (verifyResult.cancelled || ACTIVE_MODE !== 'face') return;
+
     if (!verifyResult.ok) {
       stopFaceCamera();
       showFaceErrorResult(verifyResult.title, [], verifyResult.message);
@@ -2092,6 +2099,9 @@ async function runFaceFlow() {
 
     setFaceStatus('fa-location-dot', 'Memeriksa lokasi…', true);
     const cek = await cekDalamRadius();
+
+    if (ACTIVE_MODE !== 'face') return;
+
     if (!cek.ok) {
       stopFaceCamera();
       showResult('err', 'Di Luar Area',
@@ -2114,8 +2124,12 @@ async function runFaceFlow() {
       return;
     }
 
+    if (ACTIVE_MODE !== 'face') return;
+
     // === JEDA 1 DETIK AGAR KAMERA TIDAK BLANK ===
     await new Promise(r => setTimeout(r, 1000));
+
+    if (ACTIVE_MODE !== 'face') return;
 
     stopFaceCamera();
 
