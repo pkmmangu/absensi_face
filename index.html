@@ -2522,8 +2522,12 @@ async function saveRegData() {
     showRegMsg(regMainMsg, 'err', 'Sampel belum lengkap');
     return;
   }
+
+  // === 1. MULAI ANIMASI LOADING ===
   regBtnSave.disabled = true;
+  regBtnSave.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan data...';
   hideRegMsg(regMainMsg);
+
   try {
     const avg = averageDescriptors(regDescriptors.map(s => s.descriptor));
     const res = await postJson({
@@ -2532,11 +2536,18 @@ async function saveRegData() {
       nik: regCurrentNik,
       descriptor: avg
     });
+
     if (!res.success) {
       showRegMsg(regMainMsg, 'err', res.message || 'Gagal menyimpan');
+      
+      // === 2. KEMBALIKAN TOMBOL JIKA GAGAL (DARI SERVER) ===
       regBtnSave.disabled = false;
+      regBtnSave.innerHTML = '<i class="fas fa-floppy-disk"></i> Simpan Data Wajah';
       return;
     }
+
+    // Jika berhasil, layar akan pindah ke regScreenDone
+    // (Tombol tidak perlu dikembalikan karena sudah tidak terlihat)
     regDoneText.textContent = res.message || 'Data wajah telah tersimpan.';
     regDoneInfo.innerHTML =
       '<div class="reg-info-row">' +
@@ -2554,9 +2565,13 @@ async function saveRegData() {
         '</span>' +
       '</div>';
     showRegScreen(regScreenDone);
+    
   } catch (err) {
     showRegMsg(regMainMsg, 'err', err.message || 'Gagal menyimpan');
+    
+    // === 3. KEMBALIKAN TOMBOL JIKA ERROR JARINGAN ===
     regBtnSave.disabled = false;
+    regBtnSave.innerHTML = '<i class="fas fa-floppy-disk"></i> Simpan Data Wajah';
   }
 }
 </script>
