@@ -364,7 +364,6 @@
       margin-top: 2px;
     }
 
-    /* TAMBAHKAN CSS BADGE INI */
     .result-badge {
       background: var(--error-bg);
       color: var(--error-text);
@@ -1084,9 +1083,16 @@
         <span>Posisikan wajah di dalam oval dengan pencahayaan cukup.
               Verifikasi berjalan otomatis saat wajah terdeteksi.</span>
       </div>
-      <button class="reg-btn reg-btn-outline" id="faceCloseBtn" type="button" style="padding: 12px; font-size: 14px;">
-        <i class="fas fa-xmark"></i> Tutup
-      </button>
+      
+      <!-- TOMBOL DUA BARIS (SCAN BARCODE & TUTUP) -->
+      <div class="reg-btn-row" style="margin-top: 0;">
+        <button class="reg-btn reg-btn-outline hidden" id="faceScanBarcodeBtn" type="button" style="padding: 12px; font-size: 14px; border-color: #3b82f6; color: #3b82f6;">
+          <i class="fas fa-barcode"></i> Scan Barcode
+        </button>
+        <button class="reg-btn reg-btn-outline" id="faceCloseBtn" type="button" style="padding: 12px; font-size: 14px; border-color: #ef4444; color: #ef4444;">
+          <i class="fas fa-xmark"></i> Tutup
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1218,10 +1224,6 @@
      ACTION BAR
 ========================================================= -->
 <div class="action-bar hidden" id="globalActionBar">
-  <button class="action-btn btn-import hidden" id="switchBarcodeBtn" type="button" style="background: rgba(59, 130, 246, 0.9); border-color: #3b82f6; color: #fff;">
-    <i class="fas fa-barcode"></i><span>Scan Barcode</span>
-  </button>
-
   <button class="action-btn btn-import hidden" id="importBtn" type="button">
     <i class="fas fa-image"></i><span>Import</span>
   </button>
@@ -1325,7 +1327,6 @@ const IMPORT_ENABLED = URL_CFG.import.toLowerCase() === 'enable';
 ========================================================= */
 let ACTIVE_MODE = '';
 let pendingRetry = null;
-let faceFailCount = 0; // State untuk melacak kegagalan wajah
 
 /* =========================================================
    SHARED HELPERS
@@ -1369,7 +1370,6 @@ const actionBar      = document.getElementById('globalActionBar');
 const actionBtn      = document.getElementById('actionBtn');
 const actionBtnLabel = document.getElementById('actionBtnLabel');
 const importBtn      = document.getElementById('importBtn');
-const switchBarcodeBtn = document.getElementById('switchBarcodeBtn');
 const resultOverlay  = document.getElementById('resultOverlay');
 const resultIcon     = document.getElementById('resultIcon');
 const resultTitle    = document.getElementById('resultTitle');
@@ -1407,10 +1407,15 @@ actionBtn.addEventListener('click', () => {
   setTimeout(fallbackCloseScreen, 400);
 });
 
-switchBarcodeBtn.addEventListener('click', () => {
-  switchToBarcodeMode();
-});
+// EVENT UNTUK TOMBOL SCAN BARCODE DI DALAM CARD
+const faceScanBarcodeBtn = document.getElementById('faceScanBarcodeBtn');
+if (faceScanBarcodeBtn) {
+  faceScanBarcodeBtn.addEventListener('click', () => {
+    switchToBarcodeMode();
+  });
+}
 
+// EVENT UNTUK TOMBOL TUTUP DI DALAM CARD
 const faceCloseBtn = document.getElementById('faceCloseBtn');
 if (faceCloseBtn) {
   faceCloseBtn.addEventListener('click', () => {
@@ -1489,15 +1494,13 @@ function showResult(type, title, subtitle, rows, message, badgeText = null) {
   hideImportBtn();
   
   // Sembunyikan tombol Tutup ganda
-  const btnCloseError = document.getElementById('btnCloseError');
   if (btnCloseError) btnCloseError.classList.add('hidden');
 }
 
 function hideOverlay() {
   resultOverlay.classList.remove('active');
   setActionLabel('Batal', 'fa-xmark');
-  const btnCloseError = document.getElementById('btnCloseError');
-  if (btnCloseError) btnCloseError.classList.add('hidden');
+  
   if (ACTIVE_MODE === 'barcode') {
     showActionBar();
     if (IMPORT_ENABLED) showImportBtn();
@@ -1505,6 +1508,8 @@ function hideOverlay() {
     hideActionBar();
     hideImportBtn();
   }
+  
+  if (btnCloseError) btnCloseError.classList.add('hidden');
 }
 
 function kirimKeOpener(res) {
@@ -1818,14 +1823,14 @@ async function prosesFileQrBarcode(file) {
     showResult('err', 'QR Tidak Terbaca', '', [],
       'Gambar tidak mengandung QR yang valid. Pastikan QR terlihat jelas, tidak blur, dan tidak terpotong.');
     pendingRetry = () => { hideOverlay(); showActionBar(); };
-    setActionLabel('Coba Lagi');
+    setActionLabel('Coba Lagi', 'fa-rotate-right');
     return;
   }
   if (!decodedText) {
     setStatus('QR tidak terbaca', false);
     showResult('err', 'QR Tidak Terbaca', '', [], 'Gambar tidak mengandung QR yang valid.');
     pendingRetry = () => { hideOverlay(); showActionBar(); };
-    setActionLabel('Coba Lagi');
+    setActionLabel('Coba Lagi', 'fa-rotate-right');
     return;
   }
   await prosesHasilBarcode(decodedText.trim());
@@ -1840,11 +1845,18 @@ let faceStream = null;
 
 function bootFaceScan() {
   ACTIVE_MODE = 'face';
-  faceFailCount = 0; // Reset counter
-  switchBarcodeBtn.classList.add('hidden');
   showMode('modeFace');
+  
+  // TAMPILKAN TOMBOL SCAN BARCODE DI DALAM CARD JIKA ADA NIK
+  if (USER_ID) {
+    document.getElementById('faceScanBarcodeBtn').classList.remove('hidden');
+  } else {
+    document.getElementById('faceScanBarcodeBtn').classList.add('hidden');
+  }
+
   hideActionBar();
   hideImportBtn();
+  
   runFaceFlow();
 }
 
@@ -1991,24 +2003,17 @@ async function detectAndVerifyFace(videoEl) {
 }
 
 function showFaceErrorResult(title, rows, message) {
-  faceFailCount++;
-  
   showResult('err', title, '', rows || [], message || '');
   
   pendingRetry = () => {
     hideOverlay();
-    hideActionBar();
     runFaceFlow();
   };
-  setActionLabel('Coba Lagi');
+  setActionLabel('Coba Lagi', 'fa-rotate-right');
   
+  // JIKA ERROR, TAMPILKAN TOMBOL TUTUP KEDUA DI ACTION BAR
   const btnCloseError = document.getElementById('btnCloseError');
   if (btnCloseError) btnCloseError.classList.remove('hidden');
-
-  if (faceFailCount >= 2 && USER_ID) {
-    switchBarcodeBtn.classList.remove('hidden');
-    showActionBar();
-  }
 }
 
 function switchToBarcodeMode() {
@@ -2019,7 +2024,10 @@ function switchToBarcodeMode() {
   showMode('modeBarcode');
   hideOverlay();
   hideActionBar();
-  switchBarcodeBtn.classList.add('hidden');
+  
+  // Sembunyikan tombol di dalam card
+  document.getElementById('faceScanBarcodeBtn').classList.add('hidden');
+  document.getElementById('faceCloseBtn').classList.add('hidden');
   
   setStatus('Memeriksa lokasi…', true);
   showLoading('Memeriksa lokasi Anda…');
@@ -2547,7 +2555,6 @@ async function saveRegData() {
     }
 
     // Jika berhasil, layar akan pindah ke regScreenDone
-    // (Tombol tidak perlu dikembalikan karena sudah tidak terlihat)
     regDoneText.textContent = res.message || 'Data wajah telah tersimpan.';
     regDoneInfo.innerHTML =
       '<div class="reg-info-row">' +
