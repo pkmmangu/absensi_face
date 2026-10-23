@@ -1374,9 +1374,9 @@ const FACE_DETECT_TIMEOUT = 30000; // 30 detik max mencari wajah
 // ===== Konfigurasi Liveness (Blink) =====
 const BLINK_MAX_MS     = 700;    // kedipan harus selesai < 700 ms
 const BLINK_HISTORY_MS = 2000;   // jendela median baseline
-const BLINK_WARMUP_MS  = 700;    // waktu minimal belajar baseline
+const BLINK_WARMUP_MS  = 400;    // waktu minimal belajar baseline
 const MIN_FACE_RATIO   = 0.30;   // lebar wajah minimal terhadap sisi pendek video
-const DEBUG_EAR        = false;   // set false jika sudah beres
+const DEBUG_EAR        = true;   // set false jika sudah beres
 
 function createDipDetector(dipRatio, recoverRatio) {
   let samples = [];
@@ -2032,6 +2032,16 @@ async function loadFaceModels() {
   faceModelsLoaded = true;
 }
 
+async function warmupFaceModels() {
+  try {
+    const c = document.createElement('canvas');
+    c.width = 160; c.height = 160;
+    await faceapi.detectSingleFace(c, new faceapi.TinyFaceDetectorOptions({ inputSize: 224 }));
+    await faceapi.nets.faceLandmark68Net.detectLandmarks(c);
+    await faceapi.nets.faceRecognitionNet.computeFaceDescriptor(c);
+  } catch (e) { /* abaikan, hanya pemanasan */ }
+}
+
 function setFaceStatus(icon, text, detected) {
   const pill = document.getElementById('faceVideoStatus');
   const wrap = document.getElementById('faceVideoWrap');
@@ -2161,19 +2171,38 @@ function deteksiKedipan(landmarks, videoEl) {
 
 async function detectAndVerifyFace(videoEl) {
   const startTime = Date.now();
+  const perfStart = performance.now();
+  let loops = 0;
   let detectedOnce = false;
   resetBlink();
 
-  const optLandmark = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+  const optFast = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+  const optFull = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 });
 
-  // ===== FASE 1: tunggu kedipan (ringan, tanpa descriptor) =====
+  // --- verifikasi di background ---
+  let verifyStarted = false;
+  let verifyPromise = null;
+  let verifyRes = null;
+  let verifyErr = null;
+  let labelShown = false;
+
+  const failNotRecognized = (res) => ({
+    ok: false,
+    title: 'Wajah Tidak Dikenali',
+    message: ((res && res.message) || 'Wajah tidak cocok.') + ' Pastikan wajah sudah terdaftar.'
+  });
+  const failNetwork = (e) => ({
+    ok: false, title: 'Error Jaringan', message: (e && e.message) || 'Gagal menghubungi server.'
+  });
+
   let blinked = false;
   while (Date.now() - startTime < FACE_DETECT_TIMEOUT) {
     if (ACTIVE_MODE !== 'face') return { cancelled: true };
+    loops++;
 
     let det = null;
     try {
-      det = await faceapi.detectSingleFace(videoEl, optLandmark).withFaceLandmarks();
+      det = await faceapi.detectSingleFace(videoEl, optFast).withFaceLandmarks();
     } catch (e) {}
 
     if (!det || det.detection.score < 0.5) {
@@ -2183,7 +2212,6 @@ async function detectAndVerifyFace(videoEl) {
       continue;
     }
 
-    // syarat jarak: wajah harus cukup besar di frame
     const faceRatio = det.detection.box.width / Math.min(videoEl.videoWidth, videoEl.videoHeight);
     if (faceRatio < MIN_FACE_RATIO) {
       resetBlink();
@@ -2194,13 +2222,42 @@ async function detectAndVerifyFace(videoEl) {
 
     if (!detectedOnce) detectedOnce = true;
 
+    // mulai verifikasi sekali, di background (tidak ditunggu)
+    if (!verifyStarted && det.detection.score >= 0.6) {
+      verifyStarted = true;
+      let full = null;
+      try {
+        full = await faceapi.detectSingleFace(videoEl, optFull)
+          .withFaceLandmarks().withFaceDescriptor();
+      } catch (e) {}
+      if (full) {
+        verifyPromise = postJson({
+          action: 'face_verify',
+          descriptor: Array.from(full.descriptor),
+          nik: USER_ID
+        }).then(r => { verifyRes = r; }).catch(e => { verifyErr = e; });
+      } else {
+        verifyStarted = false; // coba lagi di frame berikutnya
+      }
+    }
+
+    // hasil verifikasi sudah datang? gagal cepat bila tidak cocok
+    if (verifyErr) return failNetwork(verifyErr);
+    if (verifyRes) {
+      if (!verifyRes.success) return failNotRecognized(verifyRes);
+      if (!labelShown) { drawFaceLabel(null, verifyRes.nama, videoEl); labelShown = true; }
+    }
+
     if (deteksiKedipan(det.landmarks, videoEl)) { blinked = true; break; }
 
+    const who = verifyRes ? 'Dikenali: ' + escapeHtml(verifyRes.nama) + ' — ' : '';
     if (!earReady()) {
-      setFaceStatus('fa-eye', 'Tahan sebentar, mata terbuka biasa…', true);
+      setFaceStatus('fa-eye', who + 'Tahan sebentar, mata terbuka biasa…', true);
     } else {
+      const fps = (loops / ((performance.now() - perfStart) / 1000)).toFixed(1);
       setFaceStatus('fa-eye-slash',
-        'Silakan berkedip…' + (DEBUG_EAR ? '  [' + lastEarInfo + ']' : ''), true);
+        who + 'Silakan berkedip…' +
+        (DEBUG_EAR ? '  [' + lastEarInfo + ' | ' + fps + ' fps]' : ''), true);
     }
     await new Promise(r => setTimeout(r, 30));
   }
@@ -2215,50 +2272,21 @@ async function detectAndVerifyFace(videoEl) {
     };
   }
 
-  // ===== FASE 2: ambil descriptor (mata sudah terbuka lagi) =====
-  setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
-  await new Promise(r => setTimeout(r, 250));
-
-  let det = null;
-  for (let i = 0; i < 6 && !det; i++) {
-    if (ACTIVE_MODE !== 'face') return { cancelled: true };
-    try {
-      const d = await faceapi
-        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-      if (d && d.detection.score >= 0.5) det = d;
-    } catch (e) {}
-    if (!det) await new Promise(r => setTimeout(r, 150));
-  }
-
-  if (!det) {
+  // kedipan OK: tinggal pastikan hasil verifikasi (biasanya sudah ada)
+  if (!verifyPromise) {
     return { ok: false, title: 'Wajah Tidak Terdeteksi', message: 'Wajah hilang saat verifikasi. Coba lagi.' };
   }
-
-  try {
-    const verifyRes = await postJson({
-      action: 'face_verify',
-      descriptor: Array.from(det.descriptor),
-      nik: USER_ID
-    });
-
-    if (ACTIVE_MODE !== 'face') return { cancelled: true };
-
-    if (verifyRes.success) {
-      drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
-      setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + verifyRes.nama, true);
-      await new Promise(r => setTimeout(r, 1500));
-      return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
-    }
-    return {
-      ok: false,
-      title: 'Wajah Tidak Dikenali',
-      message: (verifyRes.message || 'Wajah tidak cocok.') + ' Pastikan wajah sudah terdaftar.'
-    };
-  } catch (e) {
-    return { ok: false, title: 'Error Jaringan', message: e.message || 'Gagal menghubungi server.' };
+  if (!verifyRes && !verifyErr) {
+    setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
+    await verifyPromise;
   }
+  if (ACTIVE_MODE !== 'face') return { cancelled: true };
+  if (verifyErr) return failNetwork(verifyErr);
+  if (!verifyRes.success) return failNotRecognized(verifyRes);
+
+  if (!labelShown) drawFaceLabel(null, verifyRes.nama, videoEl);
+  setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + escapeHtml(verifyRes.nama), true);
+  return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
 }
 
 function showFaceErrorResult(title, rows, message) {
@@ -2310,24 +2338,30 @@ async function runFaceFlow() {
   faceFlowRunning = true;
 
   try {
-    setFaceStatus('fa-spinner fa-spin', 'Memuat model wajah…', false);
-    try {
-      await loadFaceModels();
-    } catch (e) {
+    // lokasi dimulai di background sejak awal
+    const locPromise = cekDalamRadius();
+
+    // model + kamera dimuat paralel
+    setFaceStatus('fa-spinner fa-spin', 'Menyiapkan kamera & model…', false);
+    let modelErr = null, camErr = null;
+
+    const modelsP = loadFaceModels().then(warmupFaceModels).catch(e => { modelErr = e; });
+    const camP = navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
+      audio: false
+    }).then(s => { faceStream = s; }).catch(e => { camErr = e; });
+
+    await Promise.all([modelsP, camP]);
+
+    if (modelErr) {
+      stopFaceCamera();
       showFaceErrorResult('Gagal Memuat Model', [],
-        (e.message || '') + ' Periksa koneksi internet dan coba lagi.');
+        (modelErr.message || '') + ' Periksa koneksi internet dan coba lagi.');
       return;
     }
-
-    setFaceStatus('fa-spinner fa-spin', 'Menyiapkan kamera…', false);
-    try {
-      faceStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
-        audio: false
-      });
-    } catch (e) {
+    if (camErr) {
       showFaceErrorResult('Kamera Tidak Bisa Diakses', [],
-        'Tidak bisa mengakses kamera depan: ' + (e.message || '') +
+        'Tidak bisa mengakses kamera depan: ' + (camErr.message || '') +
         '. Pastikan izin kamera diberikan dan halaman dibuka via HTTPS.');
       return;
     }
@@ -2352,7 +2386,7 @@ async function runFaceFlow() {
     }
 
     setFaceStatus('fa-location-dot', 'Memeriksa lokasi…', true);
-    const cek = await cekDalamRadius();
+    const cek = await locPromise;
 
     if (ACTIVE_MODE !== 'face') return;
 
@@ -2381,7 +2415,7 @@ async function runFaceFlow() {
     if (ACTIVE_MODE !== 'face') return;
 
     // === JEDA 1 DETIK AGAR KAMERA TIDAK BLANK ===
-    await new Promise(r => setTimeout(r, 1000));
+    await new Promise(r => setTimeout(r, 300));
 
     if (ACTIVE_MODE !== 'face') return;
 
