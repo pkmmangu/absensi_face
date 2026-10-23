@@ -1371,15 +1371,20 @@ const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
 const FACE_DETECT_TIMEOUT = 30000; // 30 detik max mencari wajah
-// Konfigurasi Liveness (Blink Detection)
-// Angka 0.22 (buka) dan 0.15 (pejam) jauh lebih toleran terhadap mata orang Asia
-const EAR_THRESHOLD_OPEN  = 0.22; 
-const EAR_THRESHOLD_CLOSE = 0.15; 
-const BLINK_CONSEC_FRAMES = 2; // Butuh 2 frame mata tertutup untuk validasi blink
-let blinkCounter = 0;
-let isBlinking = false;
-let blinkState = 'WAITING_OPEN'; // Status: WAITING_OPEN -> WAITING_CLOSE -> WAITING_REOPEN
+// Konfigurasi Liveness (Blink Detection - adaptif)
+const BLINK_CLOSE_RATIO = 0.80;  // dianggap menutup jika EAR < 80% baseline
+const BLINK_OPEN_RATIO  = 0.90;  // dianggap membuka lagi jika EAR > 90% baseline
+const BLINK_ABS_CLOSE   = 0.17;  // batas absolut cadangan
+const BLINK_WARMUP      = 6;     // jumlah frame awal untuk menentukan baseline
+let earHistory = [];
+let blinkClosedSeen = false;
 let blinkDetected = false;
+
+function resetBlink() {
+  earHistory = [];
+  blinkClosedSeen = false;
+  blinkDetected = false;
+}
 
 /* =========================================================
    URL PARSING (Mendukung ?face=nik)
@@ -2060,121 +2065,137 @@ function hitungEAR(mataLandmarks) {
   return (p2_p6 + p3_p5) / (2.0 * p1_p4);
 }
 
+function getEarBaseline() {
+  // rata-rata 30% nilai EAR tertinggi (anti-noise)
+  const sorted = [...earHistory].sort((a, b) => b - a);
+  const n = Math.max(1, Math.ceil(sorted.length * 0.3));
+  return sorted.slice(0, n).reduce((a, b) => a + b, 0) / n;
+}
+
 function deteksiKedipan(landmarks) {
-  const mataKiri = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
+  const mataKiri  = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
   const mataKanan = [36, 37, 38, 39, 40, 41].map(i => landmarks.positions[i]);
+  const ear = (hitungEAR(mataKiri) + hitungEAR(mataKanan)) / 2.0;
 
-  const earKiri = hitungEAR(mataKiri);
-  const earKanan = hitungEAR(mataKanan);
-  const ear = (earKiri + earKanan) / 2.0;
-
-  // Debugging (Hapus console.log ini jika sudah berjalan normal)
-  console.log("EAR:", ear.toFixed(3), "State:", blinkState);
-
-  if (blinkState === 'WAITING_OPEN') {
-    if (ear > EAR_THRESHOLD_OPEN) {
-      blinkState = 'WAITING_CLOSE';
-    }
-  } 
-  else if (blinkState === 'WAITING_CLOSE') {
-    if (ear < EAR_THRESHOLD_CLOSE) {
-      blinkState = 'WAITING_REOPEN';
-    }
-  } 
-  else if (blinkState === 'WAITING_REOPEN') {
-    if (ear > EAR_THRESHOLD_OPEN) {
-      blinkDetected = true;
-      blinkState = 'DONE';
-      return true; 
-    }
+  // Fase pemanasan: kumpulkan EAR mata terbuka
+  if (earHistory.length < BLINK_WARMUP) {
+    earHistory.push(ear);
+    return false;
   }
 
+  const baseline = getEarBaseline();
+  const closed = ear < baseline * BLINK_CLOSE_RATIO || ear < BLINK_ABS_CLOSE;
+  const open   = ear > baseline * BLINK_OPEN_RATIO;
+
+  // Hanya masukkan frame "terbuka" ke history agar baseline tidak turun
+  if (!closed) {
+    earHistory.push(ear);
+    if (earHistory.length > 30) earHistory.shift();
+  }
+
+  // console.log('EAR', ear.toFixed(3), 'base', baseline.toFixed(3), closed ? 'CLOSED' : '');
+
+  if (!blinkClosedSeen) {
+    if (closed) blinkClosedSeen = true;
+  } else if (open) {
+    blinkDetected = true;
+    return true;
+  }
   return false;
 }
 
 async function detectAndVerifyFace(videoEl) {
   const startTime = Date.now();
   let detectedOnce = false;
-  
-  // Reset state setiap mulai
-  blinkDetected = false;
-  blinkState = 'WAITING_OPEN';
+  resetBlink();
 
+  const optLandmark = new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 });
+
+  // ===== FASE 1: tunggu kedipan (ringan, tanpa descriptor) =====
+  let blinked = false;
   while (Date.now() - startTime < FACE_DETECT_TIMEOUT) {
     if (ACTIVE_MODE !== 'face') return { cancelled: true };
-    
-    // PERCEPAT JEDA (100ms) agar tidak melewatkan momen mata menutup
-    await new Promise(r => setTimeout(r, 100)); 
 
     let det = null;
     try {
-      det = await faceapi
-        .detectSingleFace(videoEl,
-          new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
-        .withFaceLandmarks()
-        .withFaceDescriptor();
-    } catch (e) { /* retry */ }
+      det = await faceapi.detectSingleFace(videoEl, optLandmark).withFaceLandmarks();
+    } catch (e) {}
 
     if (!det || det.detection.score < 0.5) {
       if (!detectedOnce) setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
+      await new Promise(r => setTimeout(r, 30));
       continue;
     }
 
-    // Wajah terdeteksi
     if (!detectedOnce) {
       detectedOnce = true;
       setFaceStatus('fa-face-smile', 'Wajah terdeteksi. Silakan berkedip…', true);
     }
 
-    // === CEK KEDIPAN ===
-    const sudahBerkedip = deteksiKedipan(det.landmarks);
-    
-    if (!sudahBerkedip) {
-      // Beri instruksi dinamis
-      if (blinkState === 'WAITING_OPEN') {
-         setFaceStatus('fa-eye', 'Posisikan wajah (mata terbuka)…', true);
-      } else if (blinkState === 'WAITING_CLOSE' || blinkState === 'WAITING_REOPEN') {
-         setFaceStatus('fa-eye-slash', 'Silakan berkedip…', true);
-      }
-      continue; 
+    if (deteksiKedipan(det.landmarks)) { blinked = true; break; }
+
+    if (earHistory.length < BLINK_WARMUP) {
+      setFaceStatus('fa-eye', 'Posisikan wajah (mata terbuka)…', true);
+    } else {
+      setFaceStatus('fa-eye-slash', 'Silakan berkedip…', true);
     }
-
-    // Jika sudah berkedip, lanjut ke verifikasi
-    setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
-    await new Promise(r => setTimeout(r, 300));
-
-    const descriptor = Array.from(det.descriptor);
-
-    try {
-      const verifyRes = await postJson({ action: 'face_verify', descriptor, nik: USER_ID });
-
-      if (ACTIVE_MODE !== 'face') return { cancelled: true };
-
-      if (verifyRes.success) {
-        drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
-        setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + verifyRes.nama, true);
-        await new Promise(r => setTimeout(r, 1500));
-        return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
-      }
-      return {
-        ok: false,
-        title: 'Wajah Tidak Dikenali',
-        message: (verifyRes.message || 'Wajah tidak cocok.') + ' Pastikan wajah sudah terdaftar.'
-      };
-    } catch (e) {
-      return {
-        ok: false,
-        title: 'Error Jaringan',
-        message: e.message || 'Gagal menghubungi server.'
-      };
-    }
+    await new Promise(r => setTimeout(r, 30)); // yield ke UI
   }
 
-  return {
-    ok: false,
-    title: 'Wajah Tidak Terdeteksi',
-    message: 'Pastikan wajah terlihat jelas dan pencahayaan cukup.'
-  };
+  if (!blinked) {
+    return {
+      ok: false,
+      title: detectedOnce ? 'Kedipan Tidak Terdeteksi' : 'Wajah Tidak Terdeteksi',
+      message: detectedOnce
+        ? 'Pastikan wajah menghadap kamera, pencahayaan cukup, lalu berkedip secara jelas.'
+        : 'Pastikan wajah terlihat jelas dan pencahayaan cukup.'
+    };
+  }
+
+  // ===== FASE 2: ambil descriptor (mata sudah terbuka lagi) =====
+  setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
+  await new Promise(r => setTimeout(r, 250));
+
+  let det = null;
+  for (let i = 0; i < 6 && !det; i++) {
+    if (ACTIVE_MODE !== 'face') return { cancelled: true };
+    try {
+      const d = await faceapi
+        .detectSingleFace(videoEl, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.5 }))
+        .withFaceLandmarks()
+        .withFaceDescriptor();
+      if (d && d.detection.score >= 0.5) det = d;
+    } catch (e) {}
+    if (!det) await new Promise(r => setTimeout(r, 150));
+  }
+
+  if (!det) {
+    return { ok: false, title: 'Wajah Tidak Terdeteksi', message: 'Wajah hilang saat verifikasi. Coba lagi.' };
+  }
+
+  try {
+    const verifyRes = await postJson({
+      action: 'face_verify',
+      descriptor: Array.from(det.descriptor),
+      nik: USER_ID
+    });
+
+    if (ACTIVE_MODE !== 'face') return { cancelled: true };
+
+    if (verifyRes.success) {
+      drawFaceLabel(det.detection.box, verifyRes.nama, videoEl);
+      setFaceStatus('fa-check-circle', 'Wajah Dikenali: ' + verifyRes.nama, true);
+      await new Promise(r => setTimeout(r, 1500));
+      return { ok: true, nik: verifyRes.nik, nama: verifyRes.nama };
+    }
+    return {
+      ok: false,
+      title: 'Wajah Tidak Dikenali',
+      message: (verifyRes.message || 'Wajah tidak cocok.') + ' Pastikan wajah sudah terdaftar.'
+    };
+  } catch (e) {
+    return { ok: false, title: 'Error Jaringan', message: e.message || 'Gagal menghubungi server.' };
+  }
 }
 
 function showFaceErrorResult(title, rows, message) {
