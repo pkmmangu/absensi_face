@@ -1371,22 +1371,64 @@ const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
 const FACE_DETECT_TIMEOUT = 30000; // 30 detik max mencari wajah
-// Konfigurasi Liveness (Blink Detection - berbasis dip & recovery)
-const BLINK_DIP_RATIO     = 0.85;  // menutup jika EAR < 85% median
-const BLINK_RECOVER_RATIO = 0.93;  // membuka lagi jika EAR > 93% median
-const BLINK_MAX_MS        = 700;   // kedipan harus selesai < 700 ms
-const BLINK_HISTORY_MS    = 2000;  // jendela median
-const BLINK_WARMUP_MS     = 700;   // waktu minimal belajar baseline
-const DEBUG_EAR           = true;  // tampilkan EAR di layar, set false jika sudah beres
+// ===== Konfigurasi Liveness (Blink) =====
+const BLINK_MAX_MS     = 700;    // kedipan harus selesai < 700 ms
+const BLINK_HISTORY_MS = 2000;   // jendela median baseline
+const BLINK_WARMUP_MS  = 700;    // waktu minimal belajar baseline
+const MIN_FACE_RATIO   = 0.30;   // lebar wajah minimal terhadap sisi pendek video
+const DEBUG_EAR        = true;   // set false jika sudah beres
 
-let earSamples = [];   // { t, ear }
-let dipStart = null;
+function createDipDetector(dipRatio, recoverRatio) {
+  let samples = [];
+  let dipStart = null;
+  return {
+    reset() { samples = []; dipStart = null; },
+    ready() {
+      return samples.length >= 5 &&
+             (samples[samples.length - 1].t - samples[0].t) >= BLINK_WARMUP_MS;
+    },
+    baseline() {
+      const v = samples.map(s => s.ear).sort((a, b) => a - b);
+      return v.length ? v[Math.floor(v.length / 2)] : 0;
+    },
+    update(value) {
+      const now = performance.now();
+      if (!this.ready()) { samples.push({ t: now, ear: value }); return false; }
+      const base = this.baseline();
+
+      if (dipStart === null) {
+        if (value < base * dipRatio) dipStart = now;
+        else {
+          samples.push({ t: now, ear: value });
+          while (samples.length && now - samples[0].t > BLINK_HISTORY_MS) samples.shift();
+        }
+        return false;
+      }
+      if (value > base * recoverRatio) {
+        const dur = now - dipStart;
+        dipStart = null;
+        return dur <= BLINK_MAX_MS;
+      }
+      if (now - dipStart > BLINK_MAX_MS) {   // turun menetap: pelajari ulang
+        dipStart = null;
+        samples = [{ t: now, ear: value }];
+      }
+      return false;
+    }
+  };
+}
+
+// sinyal 1: EAR dari landmark (sensitivitas rendah, ambang kecil)
+const earDet = createDipDetector(0.90, 0.95);
+// sinyal 2: kontras piksel area mata (penurunan lebih besar)
+const pixDet = createDipDetector(0.78, 0.90);
+
 let blinkDetected = false;
 let lastEarInfo = '';
 
 function resetBlink() {
-  earSamples = [];
-  dipStart = null;
+  earDet.reset();
+  pixDet.reset();
   blinkDetected = false;
   lastEarInfo = '';
 }
@@ -2070,54 +2112,50 @@ function hitungEAR(mataLandmarks) {
   return (p2_p6 + p3_p5) / (2.0 * p1_p4);
 }
 
-function earReady() {
-  return earSamples.length >= 5 &&
-         (earSamples[earSamples.length - 1].t - earSamples[0].t) >= BLINK_WARMUP_MS;
+function earReady() { return earDet.ready() && pixDet.ready(); }
+
+// ===== Sinyal piksel mata =====
+const eyeCanvas = document.createElement('canvas');
+eyeCanvas.width = 32;
+eyeCanvas.height = 16;
+const eyeCtx = eyeCanvas.getContext('2d', { willReadFrequently: true });
+
+function eyePixelScore(videoEl, pts) {
+  const xs = pts.map(p => p.x), ys = pts.map(p => p.y);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+  const w = maxX - minX;
+  if (w < 6) return null;
+  const h = w * 0.5;
+  eyeCtx.drawImage(videoEl, minX, cy - h / 2, w, h, 0, 0, 32, 16);
+  const d = eyeCtx.getImageData(0, 0, 32, 16).data;
+  let sum = 0, sum2 = 0;
+  const n = d.length / 4;
+  for (let i = 0; i < d.length; i += 4) {
+    const g = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    sum += g; sum2 += g * g;
+  }
+  const mean = sum / n;
+  const sd = Math.sqrt(Math.max(0, sum2 / n - mean * mean));
+  return sd / (mean + 1);   // kontras relatif, tahan terhadap pencahayaan
 }
 
-function getEarBaseline() {
-  const v = earSamples.map(s => s.ear).sort((a, b) => a - b);
-  return v[Math.floor(v.length / 2)]; // median
-}
-
-function deteksiKedipan(landmarks) {
+function deteksiKedipan(landmarks, videoEl) {
   const mataKiri  = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
   const mataKanan = [36, 37, 38, 39, 40, 41].map(i => landmarks.positions[i]);
   const ear = (hitungEAR(mataKiri) + hitungEAR(mataKanan)) / 2.0;
-  const now = performance.now();
 
-  if (!earReady()) {
-    earSamples.push({ t: now, ear });
-    lastEarInfo = 'EAR ' + ear.toFixed(2) + ' (belajar)';
-    return false;
-  }
+  const pl = eyePixelScore(videoEl, mataKiri);
+  const pr = eyePixelScore(videoEl, mataKanan);
+  const pix = (pl != null && pr != null) ? (pl + pr) / 2 : null;
 
-  const base = getEarBaseline();
-  lastEarInfo = 'EAR ' + ear.toFixed(2) + ' / base ' + base.toFixed(2);
+  const e = earDet.update(ear);
+  const p = pix != null ? pixDet.update(pix) : false;
 
-  if (dipStart === null) {
-    if (ear < base * BLINK_DIP_RATIO) {
-      dipStart = now;                       // mulai menutup
-    } else {
-      earSamples.push({ t: now, ear });     // hanya frame "normal" jadi baseline
-      while (earSamples.length && now - earSamples[0].t > BLINK_HISTORY_MS) earSamples.shift();
-    }
-    return false;
-  }
+  lastEarInfo = 'EAR ' + ear.toFixed(2) + ' | PIX ' + (pix != null ? pix.toFixed(2) : '-') +
+                ' (base ' + pixDet.baseline().toFixed(2) + ')';
 
-  // sedang dalam kondisi "menutup"
-  if (ear > base * BLINK_RECOVER_RATIO) {
-    const dur = now - dipStart;
-    dipStart = null;
-    if (dur <= BLINK_MAX_MS) { blinkDetected = true; return true; }
-    return false;
-  }
-
-  if (now - dipStart > BLINK_MAX_MS) {
-    // penurunan menetap (bukan kedip): pelajari ulang baseline
-    dipStart = null;
-    earSamples = [{ t: now, ear }];
-  }
+  if (e || p) { blinkDetected = true; return true; }
   return false;
 }
 
@@ -2139,17 +2177,24 @@ async function detectAndVerifyFace(videoEl) {
     } catch (e) {}
 
     if (!det || det.detection.score < 0.5) {
+      resetBlink();
       if (!detectedOnce) setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
       await new Promise(r => setTimeout(r, 30));
       continue;
     }
 
-    if (!detectedOnce) {
-      detectedOnce = true;
-      setFaceStatus('fa-face-smile', 'Wajah terdeteksi. Silakan berkedip…', true);
+    // syarat jarak: wajah harus cukup besar di frame
+    const faceRatio = det.detection.box.width / Math.min(videoEl.videoWidth, videoEl.videoHeight);
+    if (faceRatio < MIN_FACE_RATIO) {
+      resetBlink();
+      setFaceStatus('fa-expand', 'Dekatkan wajah ke kamera…', false);
+      await new Promise(r => setTimeout(r, 30));
+      continue;
     }
 
-    if (deteksiKedipan(det.landmarks)) { blinked = true; break; }
+    if (!detectedOnce) detectedOnce = true;
+
+    if (deteksiKedipan(det.landmarks, videoEl)) { blinked = true; break; }
 
     if (!earReady()) {
       setFaceStatus('fa-eye', 'Tahan sebentar, mata terbuka biasa…', true);
@@ -2157,7 +2202,7 @@ async function detectAndVerifyFace(videoEl) {
       setFaceStatus('fa-eye-slash',
         'Silakan berkedip…' + (DEBUG_EAR ? '  [' + lastEarInfo + ']' : ''), true);
     }
-    await new Promise(r => setTimeout(r, 30)); // yield ke UI
+    await new Promise(r => setTimeout(r, 30));
   }
 
   if (!blinked) {
@@ -2277,7 +2322,7 @@ async function runFaceFlow() {
     setFaceStatus('fa-spinner fa-spin', 'Menyiapkan kamera…', false);
     try {
       faceStream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 480 } },
+        video: { facingMode: 'user', width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false
       });
     } catch (e) {
