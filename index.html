@@ -1371,19 +1371,24 @@ const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
 const FACE_DETECT_TIMEOUT = 30000; // 30 detik max mencari wajah
-// Konfigurasi Liveness (Blink Detection - adaptif)
-const BLINK_CLOSE_RATIO = 0.80;  // dianggap menutup jika EAR < 80% baseline
-const BLINK_OPEN_RATIO  = 0.90;  // dianggap membuka lagi jika EAR > 90% baseline
-const BLINK_ABS_CLOSE   = 0.17;  // batas absolut cadangan
-const BLINK_WARMUP      = 6;     // jumlah frame awal untuk menentukan baseline
-let earHistory = [];
-let blinkClosedSeen = false;
+// Konfigurasi Liveness (Blink Detection - berbasis dip & recovery)
+const BLINK_DIP_RATIO     = 0.85;  // menutup jika EAR < 85% median
+const BLINK_RECOVER_RATIO = 0.93;  // membuka lagi jika EAR > 93% median
+const BLINK_MAX_MS        = 700;   // kedipan harus selesai < 700 ms
+const BLINK_HISTORY_MS    = 2000;  // jendela median
+const BLINK_WARMUP_MS     = 700;   // waktu minimal belajar baseline
+const DEBUG_EAR           = true;  // tampilkan EAR di layar, set false jika sudah beres
+
+let earSamples = [];   // { t, ear }
+let dipStart = null;
 let blinkDetected = false;
+let lastEarInfo = '';
 
 function resetBlink() {
-  earHistory = [];
-  blinkClosedSeen = false;
+  earSamples = [];
+  dipStart = null;
   blinkDetected = false;
+  lastEarInfo = '';
 }
 
 /* =========================================================
@@ -2065,41 +2070,53 @@ function hitungEAR(mataLandmarks) {
   return (p2_p6 + p3_p5) / (2.0 * p1_p4);
 }
 
+function earReady() {
+  return earSamples.length >= 5 &&
+         (earSamples[earSamples.length - 1].t - earSamples[0].t) >= BLINK_WARMUP_MS;
+}
+
 function getEarBaseline() {
-  // rata-rata 30% nilai EAR tertinggi (anti-noise)
-  const sorted = [...earHistory].sort((a, b) => b - a);
-  const n = Math.max(1, Math.ceil(sorted.length * 0.3));
-  return sorted.slice(0, n).reduce((a, b) => a + b, 0) / n;
+  const v = earSamples.map(s => s.ear).sort((a, b) => a - b);
+  return v[Math.floor(v.length / 2)]; // median
 }
 
 function deteksiKedipan(landmarks) {
   const mataKiri  = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
   const mataKanan = [36, 37, 38, 39, 40, 41].map(i => landmarks.positions[i]);
   const ear = (hitungEAR(mataKiri) + hitungEAR(mataKanan)) / 2.0;
+  const now = performance.now();
 
-  // Fase pemanasan: kumpulkan EAR mata terbuka
-  if (earHistory.length < BLINK_WARMUP) {
-    earHistory.push(ear);
+  if (!earReady()) {
+    earSamples.push({ t: now, ear });
+    lastEarInfo = 'EAR ' + ear.toFixed(2) + ' (belajar)';
     return false;
   }
 
-  const baseline = getEarBaseline();
-  const closed = ear < baseline * BLINK_CLOSE_RATIO || ear < BLINK_ABS_CLOSE;
-  const open   = ear > baseline * BLINK_OPEN_RATIO;
+  const base = getEarBaseline();
+  lastEarInfo = 'EAR ' + ear.toFixed(2) + ' / base ' + base.toFixed(2);
 
-  // Hanya masukkan frame "terbuka" ke history agar baseline tidak turun
-  if (!closed) {
-    earHistory.push(ear);
-    if (earHistory.length > 30) earHistory.shift();
+  if (dipStart === null) {
+    if (ear < base * BLINK_DIP_RATIO) {
+      dipStart = now;                       // mulai menutup
+    } else {
+      earSamples.push({ t: now, ear });     // hanya frame "normal" jadi baseline
+      while (earSamples.length && now - earSamples[0].t > BLINK_HISTORY_MS) earSamples.shift();
+    }
+    return false;
   }
 
-  // console.log('EAR', ear.toFixed(3), 'base', baseline.toFixed(3), closed ? 'CLOSED' : '');
+  // sedang dalam kondisi "menutup"
+  if (ear > base * BLINK_RECOVER_RATIO) {
+    const dur = now - dipStart;
+    dipStart = null;
+    if (dur <= BLINK_MAX_MS) { blinkDetected = true; return true; }
+    return false;
+  }
 
-  if (!blinkClosedSeen) {
-    if (closed) blinkClosedSeen = true;
-  } else if (open) {
-    blinkDetected = true;
-    return true;
+  if (now - dipStart > BLINK_MAX_MS) {
+    // penurunan menetap (bukan kedip): pelajari ulang baseline
+    dipStart = null;
+    earSamples = [{ t: now, ear }];
   }
   return false;
 }
@@ -2134,10 +2151,11 @@ async function detectAndVerifyFace(videoEl) {
 
     if (deteksiKedipan(det.landmarks)) { blinked = true; break; }
 
-    if (earHistory.length < BLINK_WARMUP) {
-      setFaceStatus('fa-eye', 'Posisikan wajah (mata terbuka)…', true);
+    if (!earReady()) {
+      setFaceStatus('fa-eye', 'Tahan sebentar, mata terbuka biasa…', true);
     } else {
-      setFaceStatus('fa-eye-slash', 'Silakan berkedip…', true);
+      setFaceStatus('fa-eye-slash',
+        'Silakan berkedip…' + (DEBUG_EAR ? '  [' + lastEarInfo + ']' : ''), true);
     }
     await new Promise(r => setTimeout(r, 30)); // yield ke UI
   }
