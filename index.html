@@ -1370,10 +1370,11 @@ const FACE_MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.13
 const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
-const FACE_DETECT_TIMEOUT = 15000; // 15 detik max mencari wajah
+const FACE_DETECT_TIMEOUT = 30000; // 30 detik max mencari wajah
 // Konfigurasi Liveness (Blink Detection)
-const EAR_THRESHOLD_OPEN  = 0.25; // Ambang batas mata terbuka
-const EAR_THRESHOLD_CLOSE = 0.19; // Ambang batas mata terpejam
+// Angka 0.22 (buka) dan 0.15 (pejam) jauh lebih toleran terhadap mata orang Asia
+const EAR_THRESHOLD_OPEN  = 0.22; 
+const EAR_THRESHOLD_CLOSE = 0.15; 
 const BLINK_CONSEC_FRAMES = 2; // Butuh 2 frame mata tertutup untuk validasi blink
 let blinkCounter = 0;
 let isBlinking = false;
@@ -2060,7 +2061,6 @@ function hitungEAR(mataLandmarks) {
 }
 
 function deteksiKedipan(landmarks) {
-  // Ambil 6 titik untuk masing-masing mata
   const mataKiri = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
   const mataKanan = [36, 37, 38, 39, 40, 41].map(i => landmarks.positions[i]);
 
@@ -2068,25 +2068,24 @@ function deteksiKedipan(landmarks) {
   const earKanan = hitungEAR(mataKanan);
   const ear = (earKiri + earKanan) / 2.0;
 
-  // LOGIKA STATE MACHINE
+  // Debugging (Hapus console.log ini jika sudah berjalan normal)
+  console.log("EAR:", ear.toFixed(3), "State:", blinkState);
+
   if (blinkState === 'WAITING_OPEN') {
-    // 1. Pastikan mata terbuka lebar dulu
     if (ear > EAR_THRESHOLD_OPEN) {
       blinkState = 'WAITING_CLOSE';
     }
   } 
   else if (blinkState === 'WAITING_CLOSE') {
-    // 2. Tunggu mata terpejam
     if (ear < EAR_THRESHOLD_CLOSE) {
       blinkState = 'WAITING_REOPEN';
     }
   } 
   else if (blinkState === 'WAITING_REOPEN') {
-    // 3. Tunggu mata terbuka kembali -> BLINK BERHASIL
     if (ear > EAR_THRESHOLD_OPEN) {
       blinkDetected = true;
       blinkState = 'DONE';
-      return true; // Kembalikan nilai true
+      return true; 
     }
   }
 
