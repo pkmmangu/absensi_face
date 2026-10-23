@@ -1371,6 +1371,12 @@ const FACE_SAMPLE_COUNT = 3;
 const FACE_MIN_SCORE = 0.6;
 const FACE_MAX_ATTEMPTS = 8;
 const FACE_DETECT_TIMEOUT = 15000; // 15 detik max mencari wajah
+// Konfigurasi Liveness (Blink Detection)
+const EAR_THRESHOLD = 0.22; // Ambang batas mata tertutup
+const BLINK_CONSEC_FRAMES = 2; // Butuh 2 frame mata tertutup untuk validasi blink
+let blinkCounter = 0;
+let isBlinking = false;
+let blinkDetected = false;
 
 /* =========================================================
    URL PARSING (Mendukung ?face=nik)
@@ -2041,15 +2047,57 @@ function drawFaceLabel(box, name, videoEl) {
   ctx.fillText(name, cw / 2, bgY + (bgH / 2) + 1);
 }
 
+/* =========================================================
+   LIVENESS DETECTION (BLINK)
+========================================================= */
+function hitungEAR(mataLandmarks) {
+  // Rumus Euclidean Distance untuk 6 titik mata
+  const p2_p6 = Math.hypot(mataLandmarks[1].x - mataLandmarks[5].x, mataLandmarks[1].y - mataLandmarks[5].y);
+  const p3_p5 = Math.hypot(mataLandmarks[2].x - mataLandmarks[4].x, mataLandmarks[2].y - mataLandmarks[4].y);
+  const p1_p4 = Math.hypot(mataLandmarks[0].x - mataLandmarks[3].x, mataLandmarks[0].y - mataLandmarks[3].y);
+  
+  // Eye Aspect Ratio
+  return (p2_p6 + p3_p5) / (2.0 * p1_p4);
+}
+
+function deteksiKedipan(landmarks) {
+  // Indeks 68-point landmark untuk Mata Kiri (42-47) dan Mata Kanan (36-41)
+  const mataKiri = [42, 43, 44, 45, 46, 47].map(i => landmarks.positions[i]);
+  const mataKanan = [36, 37, 38, 39, 40, 41].map(i => landmarks.positions[i]);
+
+  const earKiri = hitungEAR(mataKiri);
+  const earKanan = hitungEAR(mataKanan);
+  const earRataRata = (earKiri + earKanan) / 2.0;
+
+  // Logika Deteksi
+  if (earRataRata < EAR_THRESHOLD && !isBlinking) {
+    isBlinking = true;
+    blinkCounter++;
+  } else if (earRataRata >= EAR_THRESHOLD && isBlinking) {
+    isBlinking = false;
+    // Jika sudah cukup frame, tandai bahwa kedipan terdeteksi
+    if (blinkCounter >= BLINK_CONSEC_FRAMES) {
+      blinkDetected = true;
+      return true;
+    }
+    blinkCounter = 0;
+  }
+  return false;
+}
+
 async function detectAndVerifyFace(videoEl) {
   const startTime = Date.now();
   let detectedOnce = false;
+  
+  // Reset state liveness setiap kali mulai
+  blinkDetected = false;
+  blinkCounter = 0;
+  isBlinking = false;
 
   while (Date.now() - startTime < FACE_DETECT_TIMEOUT) {
-    // === TAMBAHKAN PENGECEKAN INI ===
-    if (ACTIVE_MODE !== 'face') return { cancelled: true }; 
+    if (ACTIVE_MODE !== 'face') return { cancelled: true };
     
-    await new Promise(r => setTimeout(r, 400));
+    await new Promise(r => setTimeout(r, 200)); // Percepat loop sedikit untuk deteksi blink
 
     let det = null;
     try {
@@ -2061,16 +2109,30 @@ async function detectAndVerifyFace(videoEl) {
     } catch (e) { /* retry */ }
 
     if (!det || det.detection.score < 0.5) {
-      if (!detectedOnce) {
-        setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
-      }
+      if (!detectedOnce) setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
       continue;
     }
 
-    detectedOnce = true;
-    setFaceStatus('fa-face-smile', 'Wajah terdeteksi…', true);
-    await new Promise(r => setTimeout(r, 400));
+    // Wajah terdeteksi
+    if (!detectedOnce) {
+      detectedOnce = true;
+      setFaceStatus('fa-face-smile', 'Wajah terdeteksi. Silakan berkedip…', true);
+    }
+
+    // === CEK KEDIPAN ===
+    const sudahBerkedip = deteksiKedipan(det.landmarks);
+    
+    if (!sudahBerkedip) {
+      // Jika belum berkedip, tampilkan status dan lanjut loop
+      setFaceStatus('fa-eye', 'Silakan berkedip untuk verifikasi…', true);
+      continue; 
+    }
+
+    // Jika sudah berkedip, lanjut ke verifikasi
     setFaceStatus('fa-circle-notch fa-spin', 'Memverifikasi…', true);
+    
+    // Beri jeda sebentar agar UI terlihat natural
+    await new Promise(r => setTimeout(r, 500));
 
     const descriptor = Array.from(det.descriptor);
 
@@ -2088,8 +2150,7 @@ async function detectAndVerifyFace(videoEl) {
       return {
         ok: false,
         title: 'Wajah Tidak Dikenali',
-        message: (verifyRes.message || 'Wajah tidak cocok dengan data terdaftar.') +
-                 ' Pastikan wajah sudah terdaftar dan pencahayaan cukup.'
+        message: (verifyRes.message || 'Wajah tidak cocok.') + ' Pastikan wajah sudah terdaftar.'
       };
     } catch (e) {
       return {
@@ -2103,7 +2164,7 @@ async function detectAndVerifyFace(videoEl) {
   return {
     ok: false,
     title: 'Wajah Tidak Terdeteksi',
-    message: 'Pastikan wajah terlihat jelas, pencahayaan cukup, dan kamera tidak blur.'
+    message: 'Pastikan wajah terlihat jelas dan pencahayaan cukup.'
   };
 }
 
