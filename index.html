@@ -1377,6 +1377,10 @@ const BLINK_HISTORY_MS = 2000;   // jendela median baseline
 const BLINK_WARMUP_MS  = 400;    // waktu minimal belajar baseline
 const MIN_FACE_RATIO   = 0.30;   // lebar wajah minimal terhadap sisi pendek video
 const DEBUG_EAR        = false;   // set false jika sudah beres
+// Konfigurasi Anti-Spoofing (Passive)
+const SPOOF_MOIRE_THRESHOLD = 0.65;    // Semakin tinggi, semakin ketat menolak layar
+const SPOOF_TEXTURE_THRESHOLD = 0.55;  // Semakin tinggi, semakin ketat menolak foto/layar
+const SPOOF_SAMPLE_FRAMES = 5;         // Berapa frame yang dianalisis sebelum memutuskan
 
 function createDipDetector(dipRatio, recoverRatio) {
   let samples = [];
@@ -2169,6 +2173,93 @@ function deteksiKedipan(landmarks, videoEl) {
   return false;
 }
 
+/* =========================================================
+   PASSIVE ANTI-SPOOFING (MOIRÉ & TEXTURE)
+========================================================= */
+const spoofCanvas = document.createElement('canvas');
+const spoofCtx = spoofCanvas.getContext('2d', { willReadFrequently: true });
+
+// 1. Deteksi Moiré menggunakan analisis frekuensi sederhana (FFT-like)
+function detectMoirePattern(videoEl, faceBox) {
+  if (!faceBox) return 0;
+  const size = 64;
+  spoofCanvas.width = size;
+  spoofCanvas.height = size;
+
+  // Crop area wajah (diperkecil ke 64x64 untuk analisis cepat)
+  spoofCtx.drawImage(videoEl, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, size, size);
+  const data = spoofCtx.getImageData(0, 0, size, size).data;
+
+  // Hitung variansi gradien (mendeteksi pola garis/piksel layar)
+  let sumDiff = 0;
+  let count = 0;
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size - 1; x++) {
+      const i = (y * size + x) * 4;
+      const j = (y * size + (x + 1)) * 4;
+      // Selisih kecerahan piksel tetangga
+      const gray1 = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+      const gray2 = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
+      sumDiff += Math.abs(gray1 - gray2);
+      count++;
+    }
+  }
+  const avgGradient = sumDiff / count;
+  
+  // Normalisasi: semakin tinggi gradien frekuensi tinggi, semakin besar kemungkinan Moiré
+  return Math.min(avgGradient / 30, 1.0);
+}
+
+// 2. Analisis Tekstur menggunakan Laplacian Variance
+function analyzeTexture(videoEl, faceBox) {
+  if (!faceBox) return 0;
+  const w = 64, h = 64;
+  spoofCanvas.width = w;
+  spoofCanvas.height = h;
+  spoofCtx.drawImage(videoEl, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, w, h);
+  const data = spoofCtx.getImageData(0, 0, w, h).data;
+
+  // Konversi ke grayscale
+  const gray = [];
+  for (let i = 0; i < data.length; i += 4) {
+    gray.push(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
+  }
+
+  // Hitung Laplacian (operator tepi)
+  let lapSum = 0;
+  let lapCount = 0;
+  for (let y = 1; y < h - 1; y++) {
+    for (let x = 1; x < w - 1; x++) {
+      const idx = y * w + x;
+      const val = Math.abs(
+        -4 * gray[idx] +
+        gray[idx - 1] + gray[idx + 1] +
+        gray[idx - w] + gray[idx + w]
+      );
+      lapSum += val;
+      lapCount++;
+    }
+  }
+  const lapVar = lapSum / lapCount;
+  
+  // Normalisasi: layar/kertas biasanya memiliki variansi Laplacian yang lebih rendah (tekstur rata)
+  // Atau sebaliknya, layar bisa memiliki noise tinggi. Nilai ini perlu kalibrasi.
+  // Kita asumsikan tekstur kulit asli berada di rentang 10-25.
+  // Jika terlalu rendah (<5) atau terlalu tinggi (>40, noise layar), anggap spoof.
+  const score = (lapVar < 8) ? 0.8 : (lapVar > 35 ? 0.7 : 0.1);
+  return score;
+}
+
+// 3. Gabungkan sinyal menjadi satu skor
+function calculateSpoofScore(videoEl, faceBox) {
+  const moireScore = detectMoirePattern(videoEl, faceBox);
+  const textureScore = analyzeTexture(videoEl, faceBox);
+  
+  // Bobot: Moiré lebih diutamakan untuk deteksi layar
+  const composite = (moireScore * 0.6) + (textureScore * 0.4);
+  return { composite, moireScore, textureScore };
+}
+
 async function detectAndVerifyFace(videoEl) {
   const startTime = Date.now();
   const perfStart = performance.now();
@@ -2185,6 +2276,10 @@ async function detectAndVerifyFace(videoEl) {
   let verifyRes = null;
   let verifyErr = null;
   let labelShown = false;
+
+  // --- state untuk anti-spoofing ---
+  let spoofSamples = [];
+  let spoofChecked = false;
 
   const failNotRecognized = (res) => ({
     ok: false,
@@ -2222,6 +2317,38 @@ async function detectAndVerifyFace(videoEl) {
 
     if (!detectedOnce) detectedOnce = true;
 
+    // =========================================================
+    // === PROSES ANTI-SPOOFING (MENDETEKSI LAYAR HP / FOTO) ===
+    // =========================================================
+    if (!spoofChecked) {
+      if (spoofSamples.length < SPOOF_SAMPLE_FRAMES) {
+        setFaceStatus('fa-shield-alt fa-spin', 'Menganalisis keaslian wajah…', true);
+        const score = calculateSpoofScore(videoEl, det.detection.box);
+        spoofSamples.push(score.composite);
+        
+        // Ambil jeda sedikit antar sampel
+        await new Promise(r => setTimeout(r, 60));
+        continue;
+      }
+
+      // Jika sampel sudah cukup, evaluasi rata-rata
+      const avgSpoof = spoofSamples.reduce((a, b) => a + b, 0) / spoofSamples.length;
+      
+      // Jika rata-rata spoof score melewati batas, TOLAK!
+      if (avgSpoof > SPOOF_MOIRE_THRESHOLD) {
+        return {
+          ok: false,
+          title: 'Akses Ditolak (Spoofing)',
+          message: 'Sistem mendeteksi Anda menggunakan layar HP atau foto. Lakukan absensi secara langsung.',
+          isSpoof: true
+        };
+      }
+      
+      // Jika lolos spoofing, lanjut ke proses selanjutnya
+      spoofChecked = true;
+    }
+    // =========================================================
+
     // mulai verifikasi sekali, di background (tidak ditunggu)
     if (!verifyStarted && det.detection.score >= 0.6) {
       verifyStarted = true;
@@ -2248,6 +2375,7 @@ async function detectAndVerifyFace(videoEl) {
       if (!labelShown) { drawFaceLabel(null, verifyRes.nama, videoEl); labelShown = true; }
     }
 
+    // Cek Kedipan (Liveness)
     if (deteksiKedipan(det.landmarks, videoEl)) { blinked = true; break; }
 
     const who = verifyRes ? 'Dikenali: ' + escapeHtml(verifyRes.nama) + ' — ' : '';
