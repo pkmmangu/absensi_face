@@ -1378,9 +1378,8 @@ const BLINK_WARMUP_MS  = 400;    // waktu minimal belajar baseline
 const MIN_FACE_RATIO   = 0.30;   // lebar wajah minimal terhadap sisi pendek video
 const DEBUG_EAR        = false;   // set false jika sudah beres
 // Konfigurasi Anti-Spoofing (Passive)
-const SPOOF_MOIRE_THRESHOLD = 0.65;    // Semakin tinggi, semakin ketat menolak layar
-const SPOOF_TEXTURE_THRESHOLD = 0.55;  // Semakin tinggi, semakin ketat menolak foto/layar
-const SPOOF_SAMPLE_FRAMES = 5;         // Berapa frame yang dianalisis sebelum memutuskan
+const SPOOF_MOIRE_THRESHOLD = 0.42;    // Semakin tinggi, semakin ketat menolak layar
+const SPOOF_SAMPLE_FRAMES = 3;         // Berapa frame yang dianalisis sebelum memutuskan
 
 function createDipDetector(dipRatio, recoverRatio) {
   let samples = [];
@@ -2186,31 +2185,49 @@ function detectMoirePattern(videoEl, faceBox) {
   spoofCanvas.width = size;
   spoofCanvas.height = size;
 
-  // Crop area wajah (diperkecil ke 64x64 untuk analisis cepat)
   spoofCtx.drawImage(videoEl, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, size, size);
   const data = spoofCtx.getImageData(0, 0, size, size).data;
 
-  // Hitung variansi gradien (mendeteksi pola garis/piksel layar)
-  let sumDiff = 0;
+  let sumDiffX = 0;
+  let sumDiffY = 0;
   let count = 0;
+  let highFreqCount = 0;
+
+  // Analisis gradien horizontal & vertikal untuk mendeteksi garis piksel layar digital
   for (let y = 0; y < size; y++) {
     for (let x = 0; x < size - 1; x++) {
       const i = (y * size + x) * 4;
       const j = (y * size + (x + 1)) * 4;
-      // Selisih kecerahan piksel tetangga
       const gray1 = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
       const gray2 = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
-      sumDiff += Math.abs(gray1 - gray2);
+      const diff = Math.abs(gray1 - gray2);
+      sumDiffX += diff;
+      if (diff > 12) highFreqCount++;
       count++;
     }
   }
-  const avgGradient = sumDiff / count;
-  
-  // Normalisasi: semakin tinggi gradien frekuensi tinggi, semakin besar kemungkinan Moiré
-  return Math.min(avgGradient / 30, 1.0);
+
+  for (let x = 0; x < size; x++) {
+    for (let y = 0; y < size - 1; y++) {
+      const i = (y * size + x) * 4;
+      const j = ((y + 1) * size + x) * 4;
+      const gray1 = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+      const gray2 = 0.299 * data[j] + 0.587 * data[j+1] + 0.114 * data[j+2];
+      const diff = Math.abs(gray1 - gray2);
+      sumDiffY += diff;
+      if (diff > 12) highFreqCount++;
+    }
+  }
+
+  const avgGradient = (sumDiffX + sumDiffY) / (count * 2);
+  const hfRatio = highFreqCount / (count * 2);
+
+  // Skor kombinasi gradien rata-rata dan kepadatan frekuensi tinggi khas layar HP
+  const score = Math.min((avgGradient / 16) + (hfRatio * 1.8), 1.0);
+  return score;
 }
 
-// 2. Analisis Tekstur menggunakan Laplacian Variance
+// 2. Analisis Tekstur Kulit vs Permukaan Kaca / Kertas
 function analyzeTexture(videoEl, faceBox) {
   if (!faceBox) return 0;
   const w = 64, h = 64;
@@ -2219,13 +2236,11 @@ function analyzeTexture(videoEl, faceBox) {
   spoofCtx.drawImage(videoEl, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, w, h);
   const data = spoofCtx.getImageData(0, 0, w, h).data;
 
-  // Konversi ke grayscale
   const gray = [];
   for (let i = 0; i < data.length; i += 4) {
     gray.push(0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2]);
   }
 
-  // Hitung Laplacian (operator tepi)
   let lapSum = 0;
   let lapCount = 0;
   for (let y = 1; y < h - 1; y++) {
@@ -2242,22 +2257,40 @@ function analyzeTexture(videoEl, faceBox) {
   }
   const lapVar = lapSum / lapCount;
   
-  // Normalisasi: layar/kertas biasanya memiliki variansi Laplacian yang lebih rendah (tekstur rata)
-  // Atau sebaliknya, layar bisa memiliki noise tinggi. Nilai ini perlu kalibrasi.
-  // Kita asumsikan tekstur kulit asli berada di rentang 10-25.
-  // Jika terlalu rendah (<5) atau terlalu tinggi (>40, noise layar), anggap spoof.
-  const score = (lapVar < 8) ? 0.8 : (lapVar > 35 ? 0.7 : 0.1);
+  // Wajah asli memiliki variansi tekstur kulit alami. Layar HP/foto cenderung terlalu rata atau terlalu tajam.
+  const score = (lapVar < 6) ? 0.85 : (lapVar > 40 ? 0.75 : 0.1);
   return score;
 }
 
-// 3. Gabungkan sinyal menjadi satu skor
+// 3. Deteksi Pantulan Cahaya Silau (Glare) pada Layar Kaca
+function detectGlare(videoEl, faceBox) {
+  if (!faceBox) return 0;
+  const size = 64;
+  spoofCanvas.width = size;
+  spoofCanvas.height = size;
+  spoofCtx.drawImage(videoEl, faceBox.x, faceBox.y, faceBox.width, faceBox.height, 0, 0, size, size);
+  const data = spoofCtx.getImageData(0, 0, size, size).data;
+
+  let brightCount = 0;
+  let total = data.length / 4;
+  for (let i = 0; i < data.length; i += 4) {
+    const brightness = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
+    if (brightness > 245) { // Titik putih silau yang sering memantul di kaca layar HP
+      brightCount++;
+    }
+  }
+  return brightCount / total;
+}
+
+// 4. Gabungkan Sinyal Menjadi Skor Spoof Komposit
 function calculateSpoofScore(videoEl, faceBox) {
   const moireScore = detectMoirePattern(videoEl, faceBox);
   const textureScore = analyzeTexture(videoEl, faceBox);
+  const glareScore = detectGlare(videoEl, faceBox);
   
-  // Bobot: Moiré lebih diutamakan untuk deteksi layar
-  const composite = (moireScore * 0.6) + (textureScore * 0.4);
-  return { composite, moireScore, textureScore };
+  // Bobot penilaian layar (Moiré + Tekstur + Pantulan Silau Kaca)
+  const composite = (moireScore * 0.45) + (textureScore * 0.35) + (Math.min(glareScore * 6, 1.0) * 0.20);
+  return { composite, moireScore, textureScore, glareScore };
 }
 
 async function detectAndVerifyFace(videoEl) {
