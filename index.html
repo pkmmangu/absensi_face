@@ -2333,16 +2333,43 @@ async function detectAndVerifyFace(videoEl) {
       det = await faceapi.detectSingleFace(videoEl, optFast).withFaceLandmarks();
     } catch (e) {}
 
+    // === RESET KETIKA WAJAH HILANG ATAU TIDAK TERDETEKSI ===
     if (!det || det.detection.score < 0.5) {
       resetBlink();
-      if (!detectedOnce) setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
+      if (detectedOnce) {
+        // Reset semua state ke awal karena wajah keluar/hilang dari kamera
+        spoofChecked = false;
+        spoofSamples = [];
+        verifyStarted = false;
+        verifyRes = null;
+        verifyPromise = null;
+        labelShown = false;
+        blinked = false;
+        drawFaceLabel(null, '', videoEl); // Bersihkan label nama di layar
+        detectedOnce = false;
+      }
+      setFaceStatus('fa-circle-notch fa-spin', 'Mencari wajah…', false);
       await new Promise(r => setTimeout(r, 30));
       continue;
     }
 
     const faceRatio = det.detection.box.width / Math.min(videoEl.videoWidth, videoEl.videoHeight);
+    
+    // === RESET KETIKA WAJAH MENJAUH (TERLALU KECIL DI FRAME) ===
     if (faceRatio < MIN_FACE_RATIO) {
       resetBlink();
+      if (detectedOnce) {
+        // Reset semua state ke awal karena wajah menjauh
+        spoofChecked = false;
+        spoofSamples = [];
+        verifyStarted = false;
+        verifyRes = null;
+        verifyPromise = null;
+        labelShown = false;
+        blinked = false;
+        drawFaceLabel(null, '', videoEl);
+        detectedOnce = false;
+      }
       setFaceStatus('fa-expand', 'Dekatkan wajah ke kamera…', false);
       await new Promise(r => setTimeout(r, 30));
       continue;
@@ -2359,15 +2386,12 @@ async function detectAndVerifyFace(videoEl) {
         const score = calculateSpoofScore(videoEl, det.detection.box);
         spoofSamples.push(score.composite);
         
-        // Ambil jeda sedikit antar sampel
         await new Promise(r => setTimeout(r, 60));
         continue;
       }
 
-      // Jika sampel sudah cukup, evaluasi rata-rata
       const avgSpoof = spoofSamples.reduce((a, b) => a + b, 0) / spoofSamples.length;
       
-      // Jika rata-rata spoof score melewati batas, TOLAK!
       if (avgSpoof > SPOOF_MOIRE_THRESHOLD) {
         return {
           ok: false,
@@ -2377,12 +2401,11 @@ async function detectAndVerifyFace(videoEl) {
         };
       }
       
-      // Jika lolos spoofing, lanjut ke proses selanjutnya
       spoofChecked = true;
     }
     // =========================================================
 
-    // mulai verifikasi sekali, di background (tidak ditunggu)
+    // Mulai verifikasi wajah di background
     if (!verifyStarted && det.detection.score >= 0.6) {
       verifyStarted = true;
       let full = null;
@@ -2397,11 +2420,10 @@ async function detectAndVerifyFace(videoEl) {
           nik: USER_ID
         }).then(r => { verifyRes = r; }).catch(e => { verifyErr = e; });
       } else {
-        verifyStarted = false; // coba lagi di frame berikutnya
+        verifyStarted = false; 
       }
     }
 
-    // hasil verifikasi sudah datang? gagal cepat bila tidak cocok
     if (verifyErr) return failNetwork(verifyErr);
     if (verifyRes) {
       if (!verifyRes.success) return failNotRecognized(verifyRes);
@@ -2433,7 +2455,6 @@ async function detectAndVerifyFace(videoEl) {
     };
   }
 
-  // kedipan OK: tinggal pastikan hasil verifikasi (biasanya sudah ada)
   if (!verifyPromise) {
     return { ok: false, title: 'Wajah Tidak Terdeteksi', message: 'Wajah hilang saat verifikasi. Coba lagi.' };
   }
