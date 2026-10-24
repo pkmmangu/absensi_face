@@ -2168,16 +2168,19 @@ function deteksiKedipan(landmarks, videoEl) {
 // === FUNGSI DETEKSI ARAH KEPALA (YAW) ===
 function deteksiArahKepala(landmarks) {
   const nose = landmarks.positions[30];      // Ujung hidung
-  const jawLeft = landmarks.positions[0];    // Pipi kiri
-  const jawRight = landmarks.positions[16];  // Pipi kanan
+  const jawLeft = landmarks.positions[16];   // Pipi kiri pengguna
+  const jawRight = landmarks.positions[0];   // Pipi kanan pengguna
 
   const distLeft = nose.x - jawLeft.x;
   const distRight = jawRight.x - nose.x;
 
+  // Hindari pembagian dengan nol atau nilai negatif yang tidak terduga
+  if (distRight === 0) return 'TENGAH';
+
   const ratio = distLeft / distRight;
 
-  if (ratio > 1.7) return 'KANAN'; // Menoleh ke Kanan
-  if (ratio < 0.6) return 'KIRI';  // Menoleh ke Kiri
+  if (ratio < 0.6) return 'KANAN';  // Menoleh ke Kanan
+  if (ratio > 1.7) return 'KIRI';   // Menoleh ke Kiri
   return 'TENGAH';
 }
 
