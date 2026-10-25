@@ -2176,9 +2176,11 @@ function deteksiArahKepala(landmarks) {
 
   const ratio = distLeft / distRight;
 
-  if (ratio > 1.7) return 'KANAN'; // Menoleh ke Kanan
-  if (ratio < 0.6) return 'KIRI';  // Menoleh ke Kiri
-  return 'TENGAH';
+  let arah = 'TENGAH';
+  if (ratio < 0.65) arah = 'KANAN'; 
+  if (ratio > 1.55) arah = 'KIRI';  
+  
+  return { arah, ratio: ratio.toFixed(2) };
 }
 
 /* =========================================================
@@ -2269,10 +2271,15 @@ async function detectAndVerifyFace(videoEl) {
     // =========================================================
     // === LOGIKA CHALLENGE-RESPONSE (ANTI SPOOFING 100%) ===
     // =========================================================
-    const arahSekarang = deteksiArahKepala(det.landmarks);
-    
+    const hasilDeteksi = deteksiArahKepala(det.landmarks);
+    const arahSekarang = hasilDeteksi.arah;
+    const ratioSekarang = hasilDeteksi.ratio;
+
+    // Teks debug untuk arah kepala
+    const debugYaw = DEBUG_EAR ? ' [' + ratioSekarang + ' - ' + arahSekarang + ']' : '';
+
     if (statusTantangan === 'TUNGGU_TOLEH') {
-      setFaceStatus('fa-arrows-alt-h', 'TANTANGAN: Tolehkan kepala ke ' + arahAcak + '…', true);
+      setFaceStatus('fa-arrows-alt-h', 'TANTANGAN: Tolehkan kepala ke ' + arahAcak + '…' + debugYaw, true);
       
       if (arahSekarang === arahAcak) {
         statusTantangan = 'TUNGGU_TENGAH';
@@ -2282,9 +2289,10 @@ async function detectAndVerifyFace(videoEl) {
     }
 
     if (statusTantangan === 'TUNGGU_TENGAH') {
-      setFaceStatus('fa-undo', 'Kembalikan kepala ke tengah (menghadap kamera)…', true);
+      setFaceStatus('fa-undo', 'Kembalikan kepala ke tengah…' + debugYaw, true);
       
       if (arahSekarang === 'TENGAH') {
+        await new Promise(r => setTimeout(r, 500)); // Jeda stabilisasi
         statusTantangan = 'TUNGGU_KEDIP';
         resetBlink(); // Mulai hitung kedipan
       }
@@ -2326,10 +2334,14 @@ async function detectAndVerifyFace(videoEl) {
       if (deteksiKedipan(det.landmarks, videoEl)) { blinked = true; break; }
 
       const who = verifyRes ? 'Dikenali: ' + escapeHtml(verifyRes.nama) + ' — ' : '';
+      // Teks debug untuk EAR dan FPS
+      const fps = (loops / ((performance.now() - perfStart) / 1000)).toFixed(1);
+      const debugEar = DEBUG_EAR ? ' [' + lastEarInfo + ' | ' + fps + ' fps]' : '';
+
       if (!earReady()) {
-        setFaceStatus('fa-eye', who + 'Tahan sebentar, mata terbuka biasa…', true);
+        setFaceStatus('fa-eye', who + 'Tahan sebentar, mata terbuka biasa…' + debugEar, true);
       } else {
-        setFaceStatus('fa-eye-slash', who + 'Silakan berkedip…', true);
+        setFaceStatus('fa-eye-slash', who + 'Silakan berkedip…' + debugEar, true);
       }
     }
     
